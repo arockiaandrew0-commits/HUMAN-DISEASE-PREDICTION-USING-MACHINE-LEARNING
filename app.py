@@ -1,7 +1,7 @@
 import os
 import pickle
 import numpy as np
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, redirect, url_for
 import pandas as pd
 
 import logging
@@ -316,26 +316,7 @@ def home():
 
 @app.route('/chat_ui', methods=['GET'])
 def chat_ui():
-    try:
-        import json, os
-        # Try to load symptom list from artifacts; fall back gracefully
-        path = os.path.join('model', 'symptoms_list.json')
-        symptoms = []
-        if os.path.exists(path):
-            with open(path, 'r') as f:
-                symptoms = json.load(f)
-        else:
-            # Attempt to load ML artifacts for symptom index
-            load_ml_artifacts()
-            if ML_SYMPTOM_INDEX:
-                symptoms = [s.replace('symptom_', '') for s in ML_SYMPTOM_INDEX]
-            else:
-                # Fallback to known symptom causes keys
-                symptoms = sorted(list({k for k in symptom_causes.keys()}))
-        return render_template('chat.html', symptoms=symptoms)
-    except Exception:
-        # Render template even if symptoms cannot be loaded
-        return render_template('chat.html', symptoms=[])
+    return redirect(url_for('home'))
 
 @app.route('/predict', methods=['POST'])
 def predict():

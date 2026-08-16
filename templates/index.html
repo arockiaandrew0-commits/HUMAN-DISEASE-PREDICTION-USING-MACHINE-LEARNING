@@ -1,2557 +1,737 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Health Assistant Chatbot</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <style>
-        body {
-            background-image: url('/static/background.webp');
-            background-size: cover;
-            background-position: center;
-            background-repeat: no-repeat;
-            background-attachment: fixed;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            height: 100vh;
-            margin: 0;
-            padding: 0;
-            color: #000000;
-            font-size: 16px;
-            line-height: 1.6;
-        }
-        
-        /* Overlay for better text readability */
-        body::before {
-            content: '';
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(248, 250, 252, 0.85);
-            z-index: -1;
-        }
-        
-        /* Force all text to be black by default - HIGHEST PRIORITY */
-        body, body * {
-            color: #000000 !important;
-        }
-        
-        /* Force specific elements */
-        .message, .bot-message, .user-message, 
-        .result-card, .result-card *, .precautions-section, 
-        .precautions-section *, .disclaimer, .disclaimer *,
-        .welcome-message, .welcome-message *, .chat-body, 
-        .chat-body *, div, p, span, li, h1, h2, h3, h4, h5, h6,
-        .result-card div, .result-card p, .result-card span,
-        .precautions-section ul, .precautions-section li {
-            color: #000000 !important;
-        }
-        
-        /* Exceptions ONLY for headers and buttons on colored backgrounds */
-        .chat-header, .chat-header * {
-            color: #ffffff !important;
-        }
-        .send-btn, .send-btn *, .analyze-btn, .analyze-btn *,
-        .symptom-chip.selected, .symptom-chip.selected * {
-            color: #ffffff !important;
-        }
-        .container {
-            max-width: 800px;
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-            padding: 0;
-        }
-        .chat-container {
-            display: flex;
-            flex-direction: column;
-            height: 90vh;
-            border-radius: 10px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-            background-color: white;
-            overflow: hidden;
-            max-width: 800px;
-            width: 90%;
-            margin: 20px auto;
-        }
-        .chat-header {
-            background-color: #4a6fdc;
-            color: white;
-            padding: 15px 20px;
-            display: flex;
-            align-items: center;
-        }
-        .chat-avatar {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            background-color: white;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-right: 15px;
-        }
-        .chat-avatar i {
-            color: #4a6fdc;
-            font-size: 20px;
-        }
-        .chat-title {
-            font-weight: 600;
-            margin: 0;
-        }
-        .chat-subtitle {
-            font-size: 15px;
-            margin: 0;
-            opacity: 0.95;
-            font-weight: 400;
-        }
-        .chat-body {
-            flex: 1;
-            padding: 15px;
-            overflow-y: auto;
-            display: flex;
-            flex-direction: column;
-        }
-        .message {
-            max-width: 80%;
-            padding: 12px 15px;
-            border-radius: 18px;
-            margin-bottom: 15px;
-            animation: fadeIn 0.3s ease-in-out;
-            position: relative;
-            word-wrap: break-word;
-            font-size: 15px;
-            line-height: 1.6;
-        }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes slideInLeft {
-            from { opacity: 0; transform: translateX(-20px); }
-            to { opacity: 1; transform: translateX(0); }
-        }
-        @keyframes pulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.2); }
-            100% { transform: scale(1); }
-        }
-        .precautions-section {
-            margin-top: 20px;
-            animation: fadeIn 0.8s ease-in-out;
-        }
-        
-        .precaution-item {
-            margin-bottom: 8px;
-            animation: slideInLeft 0.5s ease-in-out forwards;
-            opacity: 1;
-        }
-        .user-message {
-            background-color: #e9f0ff;
-            color: #000000;
-            align-self: flex-end;
-            border-bottom-right-radius: 5px;
-            font-weight: 400;
-        }
-        .bot-message {
-            background-color: #f0f2f5;
-            color: #000000;
-            align-self: flex-start;
-            border-bottom-left-radius: 5px;
-            font-weight: 400;
-        }
-        .typing-indicator {
-            display: none;
-            align-self: flex-start;
-            background-color: #f0f2f5;
-            padding: 12px 15px;
-            border-radius: 18px;
-            margin-bottom: 15px;
-            animation: fadeIn 0.3s ease-in-out;
-        }
-        .typing-indicator span {
-            height: 8px;
-            width: 8px;
-            background-color: #999;
-            display: inline-block;
-            border-radius: 50%;
-            margin-right: 5px;
-            animation: typing 1s infinite;
-        }
-        .typing-indicator span:nth-child(2) {
-            animation-delay: 0.2s;
-        }
-        .typing-indicator span:nth-child(3) {
-            animation-delay: 0.4s;
-            margin-right: 0;
-        }
-        @keyframes typing {
-            0% { transform: translateY(0); }
-            50% { transform: translateY(-5px); }
-            100% { transform: translateY(0); }
-        }
-        .chat-footer {
-            padding: 15px;
-            border-top: 1px solid #eee;
-            display: flex;
-            align-items: center;
-        }
-        .chat-input {
-            flex: 1;
-            border: none;
-            background-color: #f0f2f5;
-            border-radius: 20px;
-            padding: 12px 15px;
-            font-size: 16px;
-            outline: none;
-            color: #000000;
-            font-weight: 400;
-        }
-        .send-btn {
-            background-color: #4a6fdc;
-            color: white;
-            border: none;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            margin-left: 10px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.2s;
-        }
-        .send-btn:hover {
-            background-color: #3a5bb9;
-        }
-        .send-btn i {
-            font-size: 16px;
-        }
-        .symptom-chips {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            margin-top: 10px;
-            margin-bottom: 15px;
-        }
-        .symptom-chip {
-            background-color: #e9f0ff;
-            color: #4a6fdc;
-            border: 1px solid #4a6fdc;
-            border-radius: 20px;
-            padding: 8px 16px;
-            font-size: 15px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        .symptom-chip:hover {
-            background-color: #d0e0ff;
-        }
-        .symptom-chip.selected {
-            background-color: #4a6fdc;
-            color: white;
-        }
-        .analyze-btn {
-            background-color: #4a6fdc;
-            color: white;
-            border: none;
-            border-radius: 20px;
-            padding: 8px 20px;
-            font-size: 14px;
-            cursor: pointer;
-            margin-top: 10px;
-            transition: all 0.2s;
-        }
-        .analyze-btn:hover {
-            background-color: #3a5bb9;
-        }
-        .probability-bar {
-            height: 8px;
-            background-color: #e9e9e9;
-            border-radius: 4px;
-            margin-top: 5px;
-            overflow: hidden;
-        }
-        .probability-fill {
-            height: 100%;
-            background-color: #4a6fdc;
-            border-radius: 4px;
-        }
-        .precautions-section {
-            margin-top: 20px; 
-            animation: fadeIn 0.8s ease-in-out;
-            background-color: #fff8f8;
-            border-radius: 10px;
-            padding: 15px;
-            border-left: 4px solid #e74c3c;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            font-size: 15px;
-            line-height: 1.7;
-            color: #000000;
-        }
-        .precaution-item {
-            margin-bottom: 8px; 
-            animation: slideInLeft 0.5s ease-in-out forwards;
-            opacity: 1;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            will-change: transform, opacity;
-        }
-        .disclaimer {
-            font-size: 14px;
-            color: #000000;
-            margin-top: 10px;
-            font-style: italic;
-            font-weight: 400;
-            line-height: 1.5;
-        }
-        .welcome-message {
-            text-align: center;
-            margin: 20px 0;
-            color: #000000;
-            font-size: 16px;
-            line-height: 1.6;
-        }
-        .welcome-message h4 {
-            color: #000000;
-            font-weight: 600;
-            font-size: 20px;
-            margin-bottom: 10px;
-        }
-        .welcome-message p {
-            color: #000000;
-            font-size: 15px;
-            font-weight: 400;
-        }
-        /* Professional enhancements */
-        @keyframes fadeInUp {
-            from { opacity: 0; transform: translateY(12px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        .result-card {
-            background: linear-gradient(135deg, #ffffff 0%, #f7f9ff 100%);
-            border: 1px solid #eef2ff;
-            border-radius: 12px;
-            padding: 16px;
-            box-shadow: 0 8px 22px rgba(0,0,0,0.06);
-            animation: fadeInUp 0.4s ease;
-        }
-        .badge-priority {
-            display: inline-block;
-            background-color: #ffe9e5;
-            color: #e74c3c;
-            border: 1px solid #ffcfc6;
-            padding: 2px 8px;
-            border-radius: 10px;
-            font-size: 12px;
-            margin-right: 8px;
-        }
-        /* Upgrade probability bars */
-        .probability-bar {
-            height: 10px;
-            background: #eef3ff;
-            border-radius: 6px;
-            margin-top: 6px;
-            overflow: hidden;
-        }
-        .probability-fill {
-            height: 100%;
-            background: linear-gradient(90deg, #4a6fdc 0%, #48c6ef 100%);
-            border-radius: 6px;
-            transition: width 0.4s ease;
-        }
-        /* Precaution item hover */
-        .precaution-item {
-            transition: transform 0.2s ease, background-color 0.2s ease;
-        }
-        .precaution-item:hover {
-            transform: translateX(4px);
-            background-color: rgba(74, 111, 220, 0.05);
-        }
-        
-        /* Advanced Dashboard Styles */
-        .dashboard-container {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.8);
-            z-index: 1000;
-            overflow-y: auto;
-        }
-        
-        .dashboard-content {
-            background-color: white;
-            margin: 20px auto;
-            padding: 30px;
-            border-radius: 15px;
-            max-width: 1200px;
-            width: 95%;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-            animation: slideInDown 0.4s ease;
-        }
-        
-        @keyframes slideInDown {
-            from { opacity: 0; transform: translateY(-50px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        
-        .dashboard-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 30px;
-            padding-bottom: 15px;
-            border-bottom: 2px solid #f0f2f5;
-        }
-        
-        .dashboard-title {
-            font-size: 28px;
-            font-weight: 700;
-            color: #000000;
-            margin: 0;
-        }
-        
-        .close-dashboard {
-            background: none;
-            border: none;
-            font-size: 24px;
-            color: #7f8c8d;
-            cursor: pointer;
-            padding: 5px;
-            border-radius: 50%;
-            transition: all 0.2s;
-        }
-        
-        .close-dashboard:hover {
-            background-color: #f8f9fa;
-            color: #e74c3c;
-        }
-        
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
-        }
-        
-        .stat-card {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 25px;
-            border-radius: 12px;
-            text-align: center;
-            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
-            transition: transform 0.3s ease;
-        }
-        
-        .stat-card:hover {
-            transform: translateY(-5px);
-        }
-        
-        .stat-card.success {
-            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-        }
-        
-        .stat-card.warning {
-            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-        }
-        
-        .stat-card.info {
-            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-        }
-        
-        .stat-number {
-            font-size: 36px;
-            font-weight: 700;
-            margin-bottom: 5px;
-        }
-        
-        .stat-label {
-            font-size: 14px;
-            opacity: 0.9;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-        
-        .chart-container {
-            background: white;
-            border-radius: 12px;
-            padding: 25px;
-            margin-bottom: 25px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-            border: 1px solid #f0f2f5;
-        }
-        
-        .chart-title {
-            font-size: 18px;
-            font-weight: 600;
-            color: #000000;
-            margin-bottom: 20px;
-            text-align: center;
-        }
-        
-        .chart-wrapper {
-            position: relative;
-            height: 300px;
-            margin-bottom: 15px;
-        }
-        
-        .chart-wrapper.large {
-            height: 400px;
-        }
-        
-        .export-section {
-            background: #f8f9fa;
-            border-radius: 12px;
-            padding: 20px;
-            margin-top: 25px;
-            text-align: center;
-        }
-        
-        .export-buttons {
-            display: flex;
-            gap: 15px;
-            justify-content: center;
-            flex-wrap: wrap;
-            margin-top: 15px;
-        }
-        
-        .export-btn {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            border-radius: 25px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        
-        .export-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
-        }
-        
-        .export-btn.csv {
-            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-        }
-        
-        .export-btn.pdf {
-            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-        }
-        
-        .export-btn.json {
-            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-        }
-        
-        /* Toolbar Styles */
-        .toolbar {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            z-index: 999;
-        }
-        
-        .toolbar-btn {
-            width: 50px;
-            height: 50px;
-            border-radius: 50%;
-            border: none;
-            color: white;
-            font-size: 18px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        .toolbar-btn.dashboard {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        }
-        
-        .toolbar-btn.export {
-            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-        }
-        
-        .toolbar-btn.settings {
-            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-        }
-        
-        .toolbar-btn:hover {
-            transform: scale(1.1);
-        }
-        
-        /* Settings Panel */
-        .settings-panel {
-            display: none;
-            position: fixed;
-            top: 0;
-            right: 0;
-            width: 350px;
-            height: 100%;
-            background: white;
-            box-shadow: -5px 0 25px rgba(0, 0, 0, 0.2);
-            z-index: 1001;
-            padding: 30px;
-            overflow-y: auto;
-            animation: slideInRight 0.3s ease;
-        }
-        
-        @keyframes slideInRight {
-            from { transform: translateX(100%); }
-            to { transform: translateX(0); }
-        }
-        
-        .settings-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 25px;
-            padding-bottom: 15px;
-            border-bottom: 2px solid #f0f2f5;
-        }
-        
-        .settings-title {
-            font-size: 20px;
-            font-weight: 600;
-            color: #2c3e50;
-        }
-        
-        .close-settings {
-            background: none;
-            border: none;
-            font-size: 20px;
-            color: #7f8c8d;
-            cursor: pointer;
-            padding: 5px;
-            border-radius: 50%;
-            transition: all 0.2s;
-        }
-        
-        .close-settings:hover {
-            background-color: #f8f9fa;
-            color: #e74c3c;
-        }
-        
-        .setting-group {
-            margin-bottom: 25px;
-        }
-        
-        .setting-label {
-            font-weight: 600;
-            color: #000000;
-            margin-bottom: 10px;
-            display: block;
-        }
-        
-        .setting-control {
-            width: 100%;
-            padding: 10px;
-            border: 2px solid #e9ecef;
-            border-radius: 8px;
-            font-size: 14px;
-            transition: border-color 0.2s;
-        }
-        
-        .setting-control:focus {
-            outline: none;
-            border-color: #4a6fdc;
-        }
-        
-        .toggle-switch {
-            position: relative;
-            display: inline-block;
-            width: 50px;
-            height: 24px;
-        }
-        
-        .toggle-switch input {
-            opacity: 0;
-            width: 0;
-            height: 0;
-        }
-        
-        .slider {
-            position: absolute;
-            cursor: pointer;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-color: #ccc;
-            transition: .4s;
-            border-radius: 24px;
-        }
-        
-        .slider:before {
-            position: absolute;
-            content: "";
-            height: 18px;
-            width: 18px;
-            left: 3px;
-            bottom: 3px;
-            background-color: white;
-            transition: .4s;
-            border-radius: 50%;
-        }
-        
-        input:checked + .slider {
-            background-color: #4a6fdc;
-        }
-        
-        input:checked + .slider:before {
-            transform: translateX(26px);
-        }
-        
-        /* Responsive Design Enhancements */
-        @media (max-width: 768px) {
-            .chat-container {
-                width: 100%;
-                height: 100vh;
-                margin: 0;
-                border-radius: 0;
-            }
-            
-            .dashboard-content {
-                margin: 10px;
-                padding: 20px;
-                width: calc(100% - 20px);
-            }
-            
-            .stats-grid {
-                grid-template-columns: 1fr;
-                gap: 15px;
-            }
-            
-            .toolbar {
-                top: 10px;
-                right: 10px;
-            }
-            
-            .toolbar-btn {
-                width: 45px;
-                height: 45px;
-                font-size: 16px;
-            }
-            
-            .settings-panel {
-                width: 100%;
-                padding: 20px;
-            }
-            
-            .export-buttons {
-                flex-direction: column;
-                align-items: center;
-            }
-            
-            .export-btn {
-                width: 200px;
-                justify-content: center;
-            }
-        }
-        
-        @media (max-width: 480px) {
-            .dashboard-title {
-                font-size: 22px;
-            }
-            
-            .stat-number {
-                font-size: 28px;
-            }
-            
-            .chart-wrapper {
-                height: 250px;
-            }
-            
-            .chart-wrapper.large {
-                height: 300px;
-            }
-        }
-        
-        /* Loading and Animation Enhancements */
-        .loading-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(255, 255, 255, 0.9);
-            display: none;
-            justify-content: center;
-            align-items: center;
-            z-index: 9999;
-        }
-        
-        .loading-spinner {
-            width: 50px;
-            height: 50px;
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #4a6fdc;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-        
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        
-        .notification {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background: #4a6fdc;
-            color: white;
-            padding: 15px 20px;
-            border-radius: 8px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-            z-index: 10000;
-            transform: translateX(400px);
-            transition: transform 0.3s ease;
-        }
-        
-        .notification.show {
-            transform: translateX(0);
-        }
-        
-        .notification.success {
-            background: #28a745;
-        }
-        
-        .notification.error {
-            background: #dc3545;
-        }
-        
-        .notification.warning {
-            background: #ffc107;
-            color: #212529;
-        }
-        
-        /* Data Table Styles */
-        .data-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-            background: white;
-            border-radius: 8px;
-            overflow: hidden;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-        }
-        
-        .data-table th,
-        .data-table td {
-            padding: 12px 15px;
-            text-align: left;
-            border-bottom: 1px solid #f0f2f5;
-        }
-        
-        .data-table th {
-            background: #f8f9fa;
-            font-weight: 600;
-            color: #000000;
-            text-transform: uppercase;
-            font-size: 12px;
-            letter-spacing: 1px;
-        }
-        
-        .data-table tr:hover {
-            background: #f8f9fa;
-        }
-        
-        .data-table tr:last-child td {
-            border-bottom: none;
-        }
-        
-        /* Progress Indicators */
-        .progress-container {
-            background: #f0f2f5;
-            border-radius: 10px;
-            padding: 3px;
-            margin: 10px 0;
-        }
-        
-        .progress-bar {
-            background: linear-gradient(90deg, #4a6fdc 0%, #48c6ef 100%);
-            height: 20px;
-            border-radius: 8px;
-            transition: width 0.6s ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-size: 12px;
-            font-weight: 600;
-        }
-        
-        /* Enhanced Symptom Selection */
-        .symptom-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-            gap: 10px;
-            margin: 15px 0;
-        }
-        
-        .symptom-card {
-            background: white;
-            border: 2px solid #e9ecef;
-            border-radius: 10px;
-            padding: 15px;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .symptom-card:hover {
-            border-color: #4a6fdc;
-            transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(74, 111, 220, 0.15);
-        }
-        
-        .symptom-card.selected {
-            background: linear-gradient(135deg, #4a6fdc 0%, #48c6ef 100%);
-            color: white;
-            border-color: #4a6fdc;
-        }
-        
-        .symptom-card .icon {
-            font-size: 24px;
-            margin-bottom: 8px;
-            display: block;
-        }
-        
-        .symptom-card .label {
-            font-size: 14px;
-            font-weight: 500;
-        }
-        
-        /* Advanced Tooltips */
-        .tooltip-container {
-            position: relative;
-            display: inline-block;
-        }
-        
-        .tooltip-text {
-            visibility: hidden;
-            width: 200px;
-            background-color: #2c3e50;
-            color: white;
-            text-align: center;
-            border-radius: 6px;
-            padding: 8px;
-            position: absolute;
-            z-index: 1001;
-            bottom: 125%;
-            left: 50%;
-            margin-left: -100px;
-            opacity: 0;
-            transition: opacity 0.3s;
-            font-size: 12px;
-        }
-        
-        .tooltip-text::after {
-            content: "";
-            position: absolute;
-            top: 100%;
-            left: 50%;
-            margin-left: -5px;
-            border-width: 5px;
-            border-style: solid;
-            border-color: #2c3e50 transparent transparent transparent;
-        }
-        
-        .tooltip-container:hover .tooltip-text {
-            visibility: visible;
-            opacity: 1;
-            transform: translateX(4px);
-            background-color: #fff1f1;
-            border-radius: 8px;
-        }
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>MedAI — Symptom Assistant</title>
+<meta name="theme-color" content="#0284c7" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --primary: #0284c7;
+    --primary-dark: #0369a1;
+    --primary-light: #e0f2fe;
+    --accent: #7c3aed;
+    --bg: #f1f5f9;
+    --bg-gradient: radial-gradient(circle at 15% 0%, #e0f2fe 0%, transparent 45%),
+                    radial-gradient(circle at 100% 20%, #ede9fe 0%, transparent 40%),
+                    #f8fafc;
+    --text: #1e293b;
+    --text-secondary: #64748b;
+    --card-bg: #ffffff;
+    --border-color: #e2e8f0;
+    --chip-bg: #f8fafc;
+    --chip-selected: #0284c7;
+    --danger: #dc2626;
+    --danger-bg: #fef2f2;
+    --success: #16a34a;
+    --shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px rgba(15, 23, 42, 0.06);
+    --radius: 16px;
+  }
 
-        /* Dark Theme Styles */
-        body.dark-theme {
-            background-color: #1a1a1a;
-            color: #f0f0f0;
-            font-size: 16px;
-            line-height: 1.6;
-        }
+  [data-theme="dark"] {
+    --primary: #38bdf8;
+    --primary-dark: #0ea5e9;
+    --primary-light: #0c4a6e;
+    --accent: #a78bfa;
+    --bg-gradient: radial-gradient(circle at 15% 0%, #0c4a6e 0%, transparent 45%),
+                    radial-gradient(circle at 100% 20%, #2e1065 0%, transparent 40%),
+                    #0b1220;
+    --text: #e2e8f0;
+    --text-secondary: #94a3b8;
+    --card-bg: #131c2e;
+    --border-color: #1e293b;
+    --chip-bg: #17213a;
+    --chip-selected: #38bdf8;
+    --danger: #f87171;
+    --danger-bg: #2a1414;
+    --success: #4ade80;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.2), 0 8px 24px rgba(0, 0, 0, 0.35);
+  }
 
-        body.dark-theme .chat-container {
-            background-color: #2d2d2d;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-        }
+  * { box-sizing: border-box; }
 
-        body.dark-theme .chat-header {
-            background-color: #3a5bb9;
-            color: #ffffff;
-        }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--bg-gradient);
+    color: var(--text);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    transition: background-color 0.25s ease, color 0.25s ease;
+  }
 
-        body.dark-theme .chat-body {
-            background-color: #2d2d2d;
-        }
+  .app-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    max-width: 920px;
+    margin: 0 auto;
+  }
 
-        body.dark-theme .user-message {
-            background-color: #4a6fdc;
-            color: #ffffff;
-            font-weight: 400;
-        }
+  .brand { display: flex; align-items: center; gap: 0.65rem; }
 
-        body.dark-theme .bot-message {
-            background-color: #3d3d3d;
-            color: #f0f0f0;
-            font-weight: 400;
-        }
-        
-        body.dark-theme .message {
-            font-size: 15px;
-            line-height: 1.6;
-        }
+  .brand-icon {
+    width: 40px; height: 40px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, var(--primary), var(--accent));
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: var(--shadow);
+    flex-shrink: 0;
+  }
 
-        body.dark-theme .chat-footer {
-            border-top-color: #404040;
-        }
+  .brand-icon svg { width: 22px; height: 22px; stroke: white; }
 
-        body.dark-theme .chat-input {
-            background-color: #3d3d3d;
-            color: #f0f0f0;
-            font-size: 16px;
-            font-weight: 400;
-        }
-        
-        body.dark-theme .chat-input::placeholder {
-            color: #aaa;
-        }
+  .brand-text h1 {
+    font-size: 1.15rem;
+    margin: 0;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+  }
 
-        body.dark-theme .symptom-chip {
-            background-color: #3d3d3d;
-            color: #f0f0f0;
-            border-color: #4a6fdc;
-            font-size: 15px;
-            font-weight: 500;
-        }
+  .brand-text p {
+    margin: 0;
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+  }
 
-        body.dark-theme .symptom-chip:hover {
-            background-color: #4d4d4d;
-        }
+  .icon-btn {
+    width: 38px; height: 38px;
+    border-radius: 10px;
+    border: 1px solid var(--border-color);
+    background: var(--card-bg);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    color: var(--text);
+    transition: transform 0.15s ease, background 0.15s ease;
+  }
+  .icon-btn:hover { background: var(--chip-bg); transform: translateY(-1px); }
+  .icon-btn svg { width: 18px; height: 18px; }
 
-        body.dark-theme .symptom-chip.selected {
-            background-color: #4a6fdc;
-            color: #ffffff;
-        }
+  main {
+    max-width: 920px;
+    margin: 0 auto;
+    padding: 0 1.25rem 2rem;
+  }
 
-        body.dark-theme .typing-indicator {
-            background-color: #3d3d3d;
-        }
+  .hero {
+    text-align: center;
+    padding: 1.5rem 1rem 1rem;
+  }
 
-        body.dark-theme .typing-indicator span {
-            background-color: #999;
-        }
-        
-        body.dark-theme .welcome-message {
-            color: #f0f0f0;
-        }
-        
-        body.dark-theme .welcome-message h4 {
-            color: #f0f0f0;
-            font-weight: 600;
-        }
-        
-        body.dark-theme .welcome-message p {
-            color: #e0e0e0;
-        }
-        
-        body.dark-theme .precautions-section {
-            color: #f0f0f0;
-            font-size: 15px;
-            line-height: 1.7;
-        }
-        
-        body.dark-theme .disclaimer {
-            color: #bbb;
-            font-size: 14px;
-        }
-        
-        body.dark-theme .chat-subtitle {
-            color: #ffffff;
-            opacity: 0.95;
-        }
+  .hero h2 {
+    font-size: 1.6rem;
+    margin: 0 0 0.4rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+  }
 
-    </style>
+  .hero p {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+  }
+
+  .disclaimer-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-top: 0.85rem;
+    padding: 0.4rem 0.85rem;
+    border-radius: 999px;
+    background: var(--danger-bg);
+    color: var(--danger);
+    font-size: 0.78rem;
+    font-weight: 600;
+    border: 1px solid rgba(220, 38, 38, 0.15);
+  }
+  .disclaimer-pill svg { width: 14px; height: 14px; }
+
+  .chip-rail {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    justify-content: center;
+    padding: 1rem 0 0.25rem;
+  }
+
+  .chip {
+    padding: 0.4rem 0.85rem;
+    border-radius: 999px;
+    background: var(--chip-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text);
+    font-size: 0.82rem;
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+  }
+  .chip:hover { border-color: var(--primary); }
+  .chip.selected {
+    background: var(--chip-selected);
+    border-color: var(--chip-selected);
+    color: #fff;
+    font-weight: 600;
+  }
+
+  .analyze-bar {
+    display: none;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin: 0.85rem 0;
+    padding: 0.7rem 1rem;
+    border-radius: 12px;
+    background: var(--primary-light);
+    border: 1px solid var(--border-color);
+  }
+  .analyze-bar.show { display: flex; }
+  .analyze-bar span { font-size: 0.85rem; color: var(--text); }
+  .analyze-bar strong { color: var(--primary-dark); }
+
+  .btn {
+    border: none;
+    border-radius: 10px;
+    padding: 0.55rem 1.1rem;
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: opacity 0.15s ease, transform 0.15s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  .btn:hover { transform: translateY(-1px); }
+  .btn-primary { background: linear-gradient(135deg, var(--primary), var(--accent)); color: #fff; }
+  .btn-ghost { background: transparent; color: var(--text-secondary); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  .chat-panel {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-direction: column;
+    height: min(58vh, 560px);
+    overflow: hidden;
+  }
+
+  .chat-scroll {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+  }
+
+  .msg-row { display: flex; gap: 0.6rem; max-width: 100%; }
+  .msg-row.user { flex-direction: row-reverse; }
+
+  .avatar {
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.85rem;
+  }
+  .avatar.bot { background: linear-gradient(135deg, var(--primary), var(--accent)); color: #fff; }
+  .avatar.user { background: var(--chip-bg); border: 1px solid var(--border-color); }
+
+  .bubble {
+    max-width: 78%;
+    padding: 0.7rem 0.95rem;
+    border-radius: 14px;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    animation: rise 0.25s ease;
+  }
+  .msg-row.bot .bubble { background: var(--chip-bg); border: 1px solid var(--border-color); border-top-left-radius: 4px; }
+  .msg-row.user .bubble { background: linear-gradient(135deg, var(--primary), var(--primary-dark)); color: #fff; border-top-right-radius: 4px; }
+
+  @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+  .insight-card {
+    margin-top: 0.6rem;
+    padding: 0.75rem 0.9rem;
+    border-radius: 12px;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+  }
+  .insight-card + .insight-card { margin-top: 0.6rem; }
+  .insight-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.35rem;
+  }
+  .insight-title { font-weight: 700; text-transform: capitalize; font-size: 0.88rem; }
+  .prevalence-tag {
+    font-size: 0.72rem;
+    color: var(--text-secondary);
+    background: var(--chip-bg);
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+    border: 1px solid var(--border-color);
+  }
+  .insight-cause { font-size: 0.84rem; color: var(--text-secondary); margin: 0 0 0.5rem; }
+
+  .tag-row { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 0.5rem; }
+  .tag {
+    font-size: 0.72rem;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    background: var(--primary-light);
+    color: var(--primary-dark);
+    font-weight: 600;
+  }
+  [data-theme="dark"] .tag { color: var(--primary); }
+
+  .red-flag-box {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0.55rem 0.7rem;
+    border-radius: 10px;
+    background: var(--danger-bg);
+    border: 1px solid rgba(220, 38, 38, 0.2);
+    margin-bottom: 0.5rem;
+    font-size: 0.8rem;
+  }
+  .red-flag-box svg { width: 16px; height: 16px; flex-shrink: 0; color: var(--danger); margin-top: 1px; }
+  .red-flag-box ul { margin: 0.15rem 0 0; padding-left: 1rem; color: var(--danger); }
+
+  .advice-list { margin: 0; padding-left: 1.1rem; font-size: 0.82rem; color: var(--text); }
+  .advice-list li { margin-bottom: 0.15rem; }
+
+  .typing-row { display: none; gap: 0.6rem; }
+  .typing-row.show { display: flex; }
+  .typing-dots { display: flex; gap: 4px; align-items: center; padding: 0.7rem 0.95rem; background: var(--chip-bg); border: 1px solid var(--border-color); border-radius: 14px; border-top-left-radius: 4px; }
+  .typing-dots span { width: 6px; height: 6px; border-radius: 50%; background: var(--text-secondary); animation: blink 1.2s infinite ease-in-out; }
+  .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+  .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes blink { 0%, 80%, 100% { opacity: 0.3; transform: scale(0.75); } 40% { opacity: 1; transform: scale(1); } }
+
+  .composer {
+    display: flex;
+    gap: 0.6rem;
+    align-items: flex-end;
+    padding: 0.85rem 1rem;
+    border-top: 1px solid var(--border-color);
+    background: var(--card-bg);
+  }
+
+  textarea#composer-input {
+    flex: 1;
+    resize: none;
+    border: 1px solid var(--border-color);
+    background: var(--bg);
+    color: var(--text);
+    border-radius: 12px;
+    padding: 0.6rem 0.85rem;
+    font-family: inherit;
+    font-size: 0.88rem;
+    max-height: 120px;
+    outline: none;
+  }
+  textarea#composer-input:focus { border-color: var(--primary); }
+
+  .send-btn {
+    width: 42px; height: 42px;
+    border-radius: 12px;
+    border: none;
+    background: linear-gradient(135deg, var(--primary), var(--accent));
+    color: white;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    transition: opacity 0.15s ease;
+  }
+  .send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .send-btn svg { width: 18px; height: 18px; }
+
+  .diagnosis-card {
+    margin-top: 1rem;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 1.25rem;
+  }
+  .diagnosis-card h3 {
+    margin: 0 0 0.9rem;
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  .diagnosis-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.9rem 1rem;
+    border-radius: 12px;
+    background: var(--primary-light);
+    margin-bottom: 1rem;
+  }
+  .diagnosis-top .name { font-size: 1.15rem; font-weight: 800; color: var(--primary-dark); }
+  [data-theme="dark"] .diagnosis-top .name { color: var(--primary); }
+  .diagnosis-top .conf { font-size: 1.3rem; font-weight: 800; color: var(--primary-dark); }
+  [data-theme="dark"] .diagnosis-top .conf { color: var(--primary); }
+
+  .prob-row { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.55rem; font-size: 0.82rem; }
+  .prob-label { width: 150px; flex-shrink: 0; color: var(--text-secondary); }
+  .prob-track { flex: 1; height: 8px; border-radius: 999px; background: var(--chip-bg); overflow: hidden; }
+  .prob-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--primary), var(--accent)); transition: width 0.5s ease; }
+  .prob-val { width: 42px; text-align: right; font-weight: 600; color: var(--text-secondary); }
+
+  footer {
+    text-align: center;
+    padding: 1.5rem 1rem 2rem;
+    color: var(--text-secondary);
+    font-size: 0.78rem;
+  }
+
+  @media (max-width: 600px) {
+    .bubble { max-width: 88%; }
+    .prob-label { width: 96px; }
+  }
+
+  ::-webkit-scrollbar { width: 8px; }
+  ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 999px; }
+</style>
 </head>
 <body>
-    <div class="container">
-        <div class="chat-container">
-            <div class="chat-header">
-                <div class="chat-avatar">
-                    <i class="fas fa-user-md"></i>
-                </div>
-                <div>
-                    <h5 class="chat-title">Health Assistant</h5>
-                    <p class="chat-subtitle">AI-powered symptom analyzer</p>
-                </div>
-            </div>
-            
-            <div class="chat-body" id="chatBody">
-                <div class="welcome-message">
-                    <h4>Welcome to Health Assistant!</h4>
-                    <p>Tell me about your symptoms or select from the options below.</p>
-                </div>
-                
-                <div class="bot-message">
-                    What symptoms are you experiencing? You can type or select from these common symptoms:
-                    <div class="symptom-chips">
-                        <div class="symptom-chip" data-symptom="headache">Headache</div>
-                        <div class="symptom-chip" data-symptom="fever">Fever</div>
-                        <div class="symptom-chip" data-symptom="cough">Cough</div>
-                        <div class="symptom-chip" data-symptom="sore_throat">Sore Throat</div>
-                        <div class="symptom-chip" data-symptom="fatigue">Fatigue</div>
-                        <div class="symptom-chip" data-symptom="nausea">Nausea</div>
-                        <div class="symptom-chip" data-symptom="dizziness">Dizziness</div>
-                        <div class="symptom-chip" data-symptom="chest_pain">Chest Pain</div>
-                    </div>
-                </div>
-                
-                <div class="typing-indicator" id="typingIndicator">
-                    <span></span>
-                    <span></span>
-                    <span></span>
-                </div>
-            </div>
-            
-            <div class="chat-footer">
-                <input type="text" class="chat-input" id="userInput" placeholder="Type your symptoms here..." autocomplete="off">
-                <button class="send-btn" id="sendBtn">
-                    <i class="fas fa-paper-plane"></i>
-                </button>
-            </div>
-        </div>
+
+<header class="app-header">
+  <div class="brand">
+    <div class="brand-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2 8 4-16 2 8h6"/></svg>
     </div>
-
-    <script>
-        // Initialize the chat when DOM is fully loaded
-        document.addEventListener('DOMContentLoaded', function() {
-            // Global variables - define them inside the DOMContentLoaded event
-            const chatBody = document.getElementById('chatBody');
-            const userInput = document.getElementById('userInput');
-            const sendBtn = document.getElementById('sendBtn');
-            const typingIndicator = document.getElementById('typingIndicator');
-            let selectedSymptoms = [];
-            let symptomInfoCache = new Map();
-            
-            // Add event listeners
-            sendBtn.addEventListener('click', handleUserInput);
-            userInput.addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') {
-                    handleUserInput();
-                }
-            });
-            
-            // Load symptoms dynamically and render chips
-            let allSymptomsArray = [];
-            let allSymptomsSet = new Set();
-
-            function renderSymptomChips(symptomNames) {
-                const container = document.querySelector('.symptom-chips');
-                container.innerHTML = '';
-                allSymptomsArray = symptomNames;
-                allSymptomsSet = new Set(symptomNames);
-                symptomNames.forEach(name => {
-                    const chip = document.createElement('div');
-                    chip.className = 'symptom-chip';
-                    chip.setAttribute('data-symptom', name);
-                    chip.textContent = formatSymptomForDisplay(name);
-                    chip.addEventListener('click', function() {
-                        const symptom = this.getAttribute('data-symptom');
-                        toggleSymptom(symptom, this);
-                    });
-                    container.appendChild(chip);
-                });
-            }
-
-            fetch('/symptoms')
-                .then(r => r.json())
-                .then(data => {
-                    if (Array.isArray(data.symptoms) && data.symptoms.length) {
-                        renderSymptomChips(data.symptoms);
-                    } else {
-                        const symptomChips = document.querySelectorAll('.symptom-chip');
-                        symptomChips.forEach(chip => {
-                            chip.addEventListener('click', function() {
-                                const symptom = this.getAttribute('data-symptom');
-                                toggleSymptom(symptom, this);
-                            });
-                        });
-                    }
-                })
-                .catch(() => {
-                    const symptomChips = document.querySelectorAll('.symptom-chip');
-                    symptomChips.forEach(chip => {
-                        chip.addEventListener('click', function() {
-                            const symptom = this.getAttribute('data-symptom');
-                            toggleSymptom(symptom, this);
-                        });
-                    });
-                });
-            
-            // Define all functions within the DOMContentLoaded scope to access the variables
-            
-            // Function to toggle symptom selection
-            function toggleSymptom(symptom, chipElement) {
-                if (selectedSymptoms.includes(symptom)) {
-                    // Remove symptom if already selected
-                    selectedSymptoms = selectedSymptoms.filter(s => s !== symptom);
-                    chipElement.classList.remove('selected');
-                } else {
-                    // Add symptom if not already selected
-                    selectedSymptoms.push(symptom);
-                    chipElement.classList.add('selected');
-                    
-                    // Add user message showing they selected this symptom
-                    addUserMessage(`I have ${formatSymptomForDisplay(symptom)}`);
-                    
-                    // Get information about this symptom
-                    getSymptomInfo(symptom);
-                }
-                
-                // If we have multiple symptoms selected, show analyze button
-                if (selectedSymptoms.length > 1) {
-                    showAnalyzeButton();
-                }
-            }
-            
-            // Format symptom for display (replace underscores with spaces)
-            function formatSymptomForDisplay(symptom) {
-                return symptom.replace(/_/g, ' ');
-            }
-            
-            // Show analyze button for multiple symptoms
-            function showAnalyzeButton() {
-                // Check if analyze button already exists
-                if (!document.getElementById('analyzeBtn')) {
-                    const analyzeMsg = document.createElement('div');
-                    analyzeMsg.className = 'bot-message';
-                    analyzeMsg.innerHTML = `
-                        You've selected multiple symptoms. Would you like me to analyze them?
-                        <button class="analyze-btn" id="analyzeBtn">Analyze My Symptoms</button>
-                    `;
-                    chatBody.appendChild(analyzeMsg);
-                    
-                    // Add event listener to analyze button
-                    document.getElementById('analyzeBtn').addEventListener('click', function() {
-                        analyzeSymptoms();
-                    });
-                    
-                    // Scroll to bottom
-                    scrollToBottom();
-                }
-            }
-            
-            // Handle user input
-            function handleUserInput() {
-                const text = userInput.value.trim();
-                if (text === '') return;
-                
-                // Add user message to chat
-                addUserMessage(text);
-                
-                // Clear input field
-                userInput.value = '';
-                
-                // Process user input
-                processUserInput(text);
-            }
-            
-            // Add user message to chat
-            function addUserMessage(text) {
-                const messageDiv = document.createElement('div');
-                messageDiv.className = 'user-message message';
-                messageDiv.textContent = text;
-                chatBody.appendChild(messageDiv);
-                scrollToBottom();
-            }
-            
-            // Add bot message to chat
-            function addBotMessage(text, isHTML = false) {
-                // Show typing indicator
-                showTypingIndicator();
-                
-                // Simulate typing delay
-                setTimeout(() => {
-                    // Hide typing indicator
-                    hideTypingIndicator();
-                    
-                    // Create message element
-                    const messageDiv = document.createElement('div');
-                    messageDiv.className = 'bot-message message';
-                    
-                    if (isHTML) {
-                        messageDiv.innerHTML = text;
-                    } else {
-                        messageDiv.textContent = text;
-                    }
-                    
-                    chatBody.appendChild(messageDiv);
-                    scrollToBottom();
-                }, 1000); // 1 second delay to simulate typing
-            }
-            
-            // Show typing indicator
-            function showTypingIndicator() {
-                typingIndicator.style.display = 'block';
-                scrollToBottom();
-            }
-            
-            // Hide typing indicator
-            function hideTypingIndicator() {
-                typingIndicator.style.display = 'none';
-            }
-            
-            // Scroll to bottom of chat
-            function scrollToBottom() {
-                chatBody.scrollTop = chatBody.scrollHeight;
-            }
-            
-            // Process user input
-            function processUserInput(text) {
-                // Check if input contains a symptom
-                const lowerText = text.toLowerCase().trim();
-                
-                // Also send to /chat endpoint for better symptom detection
-                fetch('/chat', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message: text })
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.error) {
-                        console.error('Chat error:', data.error);
-                        addBotMessage("I'm having trouble processing your input. Please try again.");
-                        return;
-                    }
-                    
-                    // Show the main reply
-                    if (data.reply) {
-                        addBotMessage(data.reply);
-                    }
-                    
-                    // Process insights if available
-                    if (Array.isArray(data.insights) && data.insights.length > 0) {
-                        data.insights.forEach(insight => {
-                            const symptom = insight.symptom || insight.normalized_symptom;
-                            if (symptom && !selectedSymptoms.includes(symptom)) {
-                                selectedSymptoms.push(symptom);
-                                // Highlight the corresponding chip if it exists
-                                const chip = document.querySelector(`.symptom-chip[data-symptom="${symptom}"]`);
-                                if (chip) {
-                                    chip.classList.add('selected');
-                                }
-                            }
-                        });
-                    }
-                    
-                    // If we have multiple symptoms selected, show analyze button
-                    if (selectedSymptoms.length > 1) {
-                        showAnalyzeButton();
-                    }
-                })
-                .catch(error => {
-                    console.error('Error processing input:', error);
-                    addBotMessage("I'm having trouble processing your input. Please try again or describe your symptoms more clearly.");
-                });
-                
-                // Also check for symptoms locally for chip highlighting
-                const symptoms = allSymptomsArray.length ? allSymptomsArray : [
-                    'headache', 'fever', 'cough', 'sore_throat', 'fatigue', 
-                    'body_ache', 'shortness_of_breath', 'chest_pain', 'dizziness',
-                    'blurred_vision', 'frequent_urination', 'excessive_thirst',
-                    'wheezing', 'runny_nose', 'nausea', 'vomiting', 'diarrhea', 'stomach_pain'
-                ];
-                
-                for (const symptom of symptoms) {
-                    const displaySymptom = formatSymptomForDisplay(symptom);
-                    const symptomLower = symptom.toLowerCase().replace(/_/g, ' ');
-                    if (lowerText.includes(displaySymptom.toLowerCase()) || lowerText.includes(symptomLower)) {
-                        if (!selectedSymptoms.includes(symptom)) {
-                            selectedSymptoms.push(symptom);
-                            const chip = document.querySelector(`.symptom-chip[data-symptom="${symptom}"]`);
-                            if (chip) {
-                                chip.classList.add('selected');
-                            }
-                        }
-                    }
-                }
-            }
-            
-            // Get information about a symptom
-            function getSymptomInfo(symptom) {
-                // Show typing indicator
-                showTypingIndicator();
-                // Serve from cache if available
-                if (symptomInfoCache.has(symptom)) {
-                    const cached = symptomInfoCache.get(symptom);
-                    hideTypingIndicator();
-                    renderSymptomInfoMessage(symptom, cached);
-                    return;
-                }
-                // Fetch symptom information from backend
-                fetch(`/symptom_info?symptom=${encodeURIComponent(symptom)}`)
-                    .then(response => {
-                        if (!response.ok) {
-                            throw new Error(`HTTP error! status: ${response.status}`);
-                        }
-                        return response.json();
-                    })
-                    .then(data => {
-                        hideTypingIndicator();
-                        if (data && (data.cause || data.symptom)) {
-                            symptomInfoCache.set(symptom, data);
-                            renderSymptomInfoMessage(symptom, data);
-                        } else {
-                            throw new Error('Invalid response data');
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error fetching symptom info:', error);
-                        console.error('Symptom:', symptom);
-                        hideTypingIndicator();
-                        addBotMessage(`I'm having trouble retrieving information about "${formatSymptomForDisplay(symptom)}". Please try describing it differently or consult a healthcare professional.`);
-                    });
-            }
-            
-            // Helper to render symptom info message with priority badge
-            function renderSymptomInfoMessage(symptom, data) {
-                const displaySymptom = formatSymptomForDisplay(symptom);
-                const map = {
-                    'headache': [ { emoji: '💊', text: 'Take appropriate pain relievers as needed' } ],
-                    'fever': [ { emoji: '💧', text: 'Drink plenty of fluids to prevent dehydration' } ],
-                    'cough': [ { emoji: '🍯', text: 'Try honey with warm water (adults only)' } ],
-                    'sore_throat': [ { emoji: '🧂', text: 'Gargle with warm salt water' } ],
-                    'fatigue': [ { emoji: '🛌', text: 'Prioritize rest and balanced sleep' } ],
-                    'shortness_of_breath': [ { emoji: '🏥', text: 'Seek medical attention if severe or sudden' } ],
-                    'chest_pain': [ { emoji: '🚑', text: 'Seek urgent care if severe or with breathlessness' } ],
-                    'nausea': [ { emoji: '🥤', text: 'Small sips of clear fluids' } ],
-                    'diarrhea': [ { emoji: '🧴', text: 'Use oral rehydration solution' } ],
-                };
-                const arr = map[symptom] || [];
-                const topPrecautionForSymptom = arr.length ? arr[0] : { emoji: '⚠️', text: 'Consult a healthcare professional if symptoms worsen' };
-
-                // Build insights UI if available
-                let insightsHTML = '';
-                if (data.prevalence_pct || (Array.isArray(data.top_diseases) && data.top_diseases.length)) {
-                    insightsHTML += `<div class="result-card" style="margin-top:10px; color:#000000 !important;">
-                        <div style="font-weight:600; color:#4a6fdc !important; margin-bottom:6px;">Dataset insights</div>`;
-                    if (typeof data.prevalence_pct === 'number') {
-                        insightsHTML += `<div style="margin-bottom:8px; color:#000000 !important;">Prevalence in dataset: <span style="font-weight:600; color:#000000 !important;">${data.prevalence_pct}%</span></div>`;
-                    }
-                    if (Array.isArray(data.top_diseases) && data.top_diseases.length) {
-                        insightsHTML += `<div style="color:#000000 !important;">Likely conditions when present:</div>`;
-                        data.top_diseases.slice(0,5).forEach(item => {
-                            const p = item.percent || 0;
-                            insightsHTML += `
-                                <div style="margin:6px 0; color:#000000 !important;">
-                                    <div style="display:flex; justify-content:space-between; color:#000000 !important;">
-                                        <span style="color:#000000 !important;">${item.name}</span>
-                                        <span style="color:#000000 !important;">${p}%</span>
-                                    </div>
-                                    <div class="probability-bar"><div class="probability-fill" style="width:${p}%"></div></div>
-                                </div>`;
-                        });
-                    }
-                    insightsHTML += `</div>`;
-                }
-
-                // Co-occurring symptoms chips
-                let coHTML = '';
-                if (Array.isArray(data.co_symptoms) && data.co_symptoms.length) {
-                    coHTML += `<div class="bot-message" style="margin-top:8px;">Commonly co-occurs with:`;
-                    coHTML += `<div class="symptom-chips">`;
-                    data.co_symptoms.slice(0,8).forEach(s => {
-                        coHTML += `<div class="symptom-chip">${s.name}</div>`;
-                    });
-                    coHTML += `</div></div>`;
-                }
-
-                // Red flags
-                let redFlagsHTML = '';
-                if (Array.isArray(data.red_flags) && data.red_flags.length) {
-                    redFlagsHTML += `<div class="precautions-section" style="margin-top:8px; color:#000000 !important;">
-                        <h3 style="color:#e74c3c !important; margin-bottom:8px;">🚨 Red Flags</h3>
-                        <ul style="list-style-type:none; padding-left:5px; color:#000000 !important;">`;
-                    data.red_flags.forEach((rf, index) => {
-                        const delay = 0.3 + (index * 0.15);
-                        redFlagsHTML += `<li class="precaution-item" style="animation-delay:${delay}s; color:#000000 !important;">⚠️ ${rf}</li>`;
-                    });
-                    redFlagsHTML += `</ul></div>`;
-                }
-
-                // Advice list
-                let adviceHTML = '';
-                if (Array.isArray(data.advice) && data.advice.length) {
-                    adviceHTML += `<div class="precautions-section" style="margin-top:8px; color:#000000 !important;">
-                        <h3 style="color:#2ecc71 !important; margin-bottom:8px;">✅ Helpful Steps</h3>
-                        <ul style="list-style-type:none; padding-left:5px; color:#000000 !important;">`;
-                    data.advice.forEach((ad, index) => {
-                        const delay = 0.5 + (index * 0.15);
-                        const priorityLabel = index === 0 ? '<span class="badge-priority">First priority</span> ' : '';
-                        adviceHTML += `<li class="precaution-item" style="animation-delay:${delay}s; color:#000000 !important;">${priorityLabel}${ad}</li>`;
-                    });
-                    adviceHTML += `</ul></div>`;
-                }
-
-                const msgHTML = `
-                    <div class="result-card" style="color:#000000 !important;">
-                        <div style="font-size:18px; font-weight:600; color:#000000 !important;">${displaySymptom}</div>
-                        <div style="margin-top:6px; color:#000000 !important;">${data.cause}</div>
-                        <div style="margin-top:8px; color:#000000 !important;"><span class="badge-priority">First priority</span> <span>${topPrecautionForSymptom.emoji}</span> ${topPrecautionForSymptom.text}</div>
-                    </div>
-                    ${insightsHTML}
-                    ${coHTML}
-                    ${redFlagsHTML}
-                    ${adviceHTML}
-                `;
-                addBotMessage(msgHTML, true);
-            }
-            
-            // Analyze symptoms
-            function analyzeSymptoms() {
-                if (selectedSymptoms.length === 0) {
-                    addBotMessage("Please select at least one symptom for analysis.");
-                    return;
-                }
-                
-                // Show typing indicator
-                showTypingIndicator();
-                
-                // Send selected symptoms to backend for analysis
-                fetch('/predict_by_symptoms_ml', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ symptoms: selectedSymptoms }),
-                })
-                .then(response => response.json())
-                .then(data => {
-                    // Hide typing indicator
-                    hideTypingIndicator();
-                    
-                    // Create HTML for results
-                    // Create HTML for results wrapped in result-card
-                    let resultsHTML = `
-                        <div class="result-card" style="color:#000000 !important;">
-                            <div style="color:#000000 !important;">Based on your symptoms, you may have:<br></div>
-                            <span style="font-size: 20px; color: #4a6fdc !important; font-weight: 600;">${data.disease}</span><br>
-                            <span style="font-size: 16px; color: #000000 !important;">Confidence: ${data.confidence}%</span><br><br>
-                        `;
-                    
-                    // Add probabilities
-                    if (data.probabilities) {
-                        resultsHTML += `<div style="color:#000000 !important;">Other possibilities:<br></div>`;
-                        
-                        // Sort diseases by probability
-                        const sortedDiseases = Object.keys(data.probabilities)
-                            .filter(disease => disease !== data.disease && data.probabilities[disease] > 0)
-                            .sort((a, b) => data.probabilities[b] - data.probabilities[a])
-                            .slice(0, 3); // Show top 3 alternatives
-                        
-                        sortedDiseases.forEach(disease => {
-                            const probability = data.probabilities[disease];
-                            resultsHTML += `
-                                <div style="margin-bottom: 8px; color:#000000 !important;">
-                                    <div style="display: flex; justify-content: space-between; color:#000000 !important;">
-                                        <span style="color:#000000 !important;">${disease}</span>
-                                        <span style="color:#000000 !important;">${probability}%</span>
-                                    </div>
-                                    <div class="probability-bar">
-                                        <div class="probability-fill" style="width: ${probability}%"></div>
-                                    </div>
-                                </div>
-                            `;
-                        });
-                    }
-                    
-                    // Get symptom and disease-specific precautions
-                    const getSymptomPrecautions = (symptoms, disease) => {
-                        // Symptom-specific precautions
-                        const symptomPrecautionsMap = {
-                            'headache': [
-                                { emoji: '💊', text: 'Take appropriate pain relievers as needed' },
-                                { emoji: '🌑', text: 'Rest in a quiet, dark room' },
-                                { emoji: '🧊', text: 'Apply cold compress to forehead' },
-                                { emoji: '💧', text: 'Stay hydrated - dehydration can worsen headaches' }
-                            ],
-                            'fever': [
-                                { emoji: '💊', text: 'Take fever-reducing medication as directed' },
-                                { emoji: '🧊', text: 'Use cool, damp cloths on forehead and wrists' },
-                                { emoji: '💧', text: 'Drink plenty of fluids to prevent dehydration' },
-                                { emoji: '👕', text: 'Wear lightweight clothing and use light bedding' }
-                            ],
-                            'cough': [
-                                { emoji: '🍯', text: 'Try honey with warm water (adults only)' },
-                                { emoji: '💧', text: 'Stay hydrated to thin mucus' },
-                                { emoji: '🧪', text: 'Use a humidifier to moisten air' },
-                                { emoji: '🛌', text: 'Elevate your head while sleeping' }
-                            ],
-                            'sore_throat': [
-                                { emoji: '🧂', text: 'Gargle with warm salt water' },
-                                { emoji: '🍯', text: 'Try honey with warm tea (adults only)' },
-                                { emoji: '💧', text: 'Stay hydrated with warm liquids' },
-                                { emoji: '🍦', text: 'Suck on throat lozenges or ice chips' }
-                            ],
-                            'fatigue': [
-                                { emoji: '🛌', text: 'Get adequate rest and sleep' },
-                                { emoji: '🥗', text: 'Eat small, frequent, nutritious meals' },
-                                { emoji: '💧', text: 'Stay hydrated throughout the day' },
-                                { emoji: '🚶', text: 'Take short walks if possible - light activity can help' }
-                            ],
-                            'nausea': [
-                                { emoji: '🍵', text: 'Try ginger tea or peppermint tea' },
-                                { emoji: '🍪', text: 'Eat small amounts of bland foods like crackers' },
-                                { emoji: '💧', text: 'Sip clear fluids slowly' },
-                                { emoji: '🧊', text: 'Try ice chips if keeping liquids down is difficult' }
-                            ],
-                            'vomiting': [
-                                { emoji: '🚰', text: 'Take small sips of clear fluids frequently' },
-                                { emoji: '🍞', text: 'Eat bland foods once nausea improves (BRAT diet)' },
-                                { emoji: '🛌', text: 'Rest and avoid solid food temporarily' },
-                                { emoji: '⚠️', text: 'Seek care if vomiting persists >24h or dehydration signs' }
-                            ],
-                            'diarrhea': [
-                                { emoji: '💧', text: 'Oral rehydration solution to replace fluids' },
-                                { emoji: '🍚', text: 'Eat bland foods (rice, banana, toast)' },
-                                { emoji: '🧼', text: 'Practice hand hygiene to prevent spread' },
-                                { emoji: '⚠️', text: 'Consult doctor if blood in stool or severe cramps' }
-                            ],
-                            'dizziness': [
-                                { emoji: '🪑', text: 'Sit or lie down immediately when feeling dizzy' },
-                                { emoji: '🚶', text: 'Move slowly when changing positions' },
-                                { emoji: '💧', text: 'Stay hydrated - dehydration can cause dizziness' },
-                                { emoji: '🚫', text: 'Avoid sudden head movements' }
-                            ],
-                            'chest_pain': [
-                                { emoji: '🚨', text: 'Seek emergency medical attention immediately' },
-                                { emoji: '💊', text: 'Take prescribed medications as directed' },
-                                { emoji: '🛌', text: 'Rest in a comfortable position' },
-                                { emoji: '🧘', text: 'Practice calm, deep breathing if anxious' }
-                            ],
-                            'shortness_of_breath': [
-                                { emoji: '🧘', text: 'Sit upright and practice pursed-lip breathing' },
-                                { emoji: '💨', text: 'Use prescribed inhalers if applicable' },
-                                { emoji: '🚭', text: 'Avoid smoke and environmental irritants' },
-                                { emoji: '🚑', text: 'Seek urgent care if severe or with chest pain' }
-                            ],
-                            'abdominal_pain': [
-                                { emoji: '🛌', text: 'Rest and avoid heavy meals' },
-                                { emoji: '🍵', text: 'Warm liquids; avoid caffeine and alcohol' },
-                                { emoji: '🍽️', text: 'Eat small, bland meals' },
-                                { emoji: '⚠️', text: 'Seek care if pain severe or persistent' }
-                            ],
-                            'muscle_aches': [
-                                { emoji: '🛌', text: 'Rest and gentle stretching' },
-                                { emoji: '🧊', text: 'Alternate warm and cold compresses' },
-                                { emoji: '💧', text: 'Hydrate; consider electrolyte replacement' },
-                                { emoji: '💊', text: 'Use over-the-counter analgesics if needed' }
-                            ],
-                            'joint_pain': [
-                                { emoji: '🧊', text: 'Ice painful joints; consider compression' },
-                                { emoji: '🧘', text: 'Gentle range-of-motion exercises' },
-                                { emoji: '🦶', text: 'Avoid high-impact activities temporarily' },
-                                { emoji: '💊', text: 'NSAIDs as directed if appropriate' }
-                            ],
-                            'skin_rash': [
-                                { emoji: '🧼', text: 'Keep area clean and dry' },
-                                { emoji: '🧴', text: 'Use fragrance-free moisturizers' },
-                                { emoji: '🧪', text: 'Avoid new soaps/detergents causing irritation' },
-                                { emoji: '⚠️', text: 'Seek care if rash spreads or with fever' }
-                            ],
-                            'chills': [
-                                { emoji: '🧣', text: 'Keep warm; layer clothing' },
-                                { emoji: '💧', text: 'Fluids to prevent dehydration' },
-                                { emoji: '🛌', text: 'Rest; monitor for fever' },
-                                { emoji: '🧴', text: 'Use warm compresses if uncomfortable' }
-                            ],
-                            'runny_nose': [
-                                { emoji: '🤧', text: 'Use saline sprays or rinses' },
-                                { emoji: '🧪', text: 'Humidify air to reduce irritation' },
-                                { emoji: '🧻', text: 'Blow nose gently; avoid over-blowing' },
-                                { emoji: '🧼', text: 'Wash hands often' }
-                            ],
-                            'wheezing': [
-                                { emoji: '💨', text: 'Use bronchodilator inhaler if prescribed' },
-                                { emoji: '🧪', text: 'Humidified air; avoid cold dry air' },
-                                { emoji: '🚭', text: 'Avoid smoke/pollutants' },
-                                { emoji: '⚠️', text: 'Seek urgent care if breathing worsens' }
-                            ],
-                            'blurred_vision': [
-                                { emoji: '🛑', text: 'Stop straining; rest eyes briefly' },
-                                { emoji: '💧', text: 'Artificial tears if dryness' },
-                                { emoji: '👓', text: 'Check corrective lenses' },
-                                { emoji: '⚠️', text: 'Seek care if sudden or with headache' }
-                            ],
-                            'frequent_urination': [
-                                { emoji: '🚰', text: 'Hydrate but avoid diuretics (caffeine)' },
-                                { emoji: '🧼', text: 'Practice hygiene; consider UTI evaluation' },
-                                { emoji: '🕒', text: 'Track frequency and fluid intake' },
-                                { emoji: '⚕️', text: 'Discuss with clinician if persistent' }
-                            ],
-                            'excessive_thirst': [
-                                { emoji: '💧', text: 'Hydrate regularly; include electrolytes if needed' },
-                                { emoji: '🍬', text: 'Limit sugary drinks; monitor blood sugar if diabetic' },
-                                { emoji: '🧪', text: 'Check for medication side effects' },
-                                { emoji: '⚕️', text: 'Seek medical advice if ongoing' }
-                            ],
-                            'stomach_pain': [
-                                { emoji: '🍵', text: 'Warm liquids; avoid spicy/fatty foods' },
-                                { emoji: '🛌', text: 'Rest and monitor for changes' },
-                                { emoji: '🍽️', text: 'Small, bland meals (e.g., toast, rice)' },
-                                { emoji: '⚠️', text: 'Consult doctor if severe or with vomiting/fever' }
-                            ],
-                            'body_ache': [
-                                { emoji: '🛌', text: 'Rest and gentle stretching' },
-                                { emoji: '💧', text: 'Hydration and electrolytes' },
-                                { emoji: '🧊', text: 'Warm bath or cold compress for relief' },
-                                { emoji: '💊', text: 'OTC analgesics if appropriate' }
-                            ]
-                        };
-                        
-                        // Disease-specific precautions
-                        const diseasePrecautionsMap = {
-                            'Common Cold': [
-                                { emoji: '🏠', text: 'Rest at home and avoid contact with others' },
-                                { emoji: '💧', text: 'Stay hydrated with plenty of fluids' },
-                                { emoji: '🧣', text: 'Keep warm and use a humidifier if available' },
-                                { emoji: '🧼', text: 'Wash hands frequently to prevent spread' }
-                            ],
-                            'Influenza': [
-                                { emoji: '🏥', text: 'Seek medical attention if symptoms are severe' },
-                                { emoji: '🛌', text: 'Get plenty of rest and avoid physical exertion' },
-                                { emoji: '💧', text: 'Drink fluids to prevent dehydration' },
-                                { emoji: '💉', text: 'Consider flu vaccination for future prevention' }
-                            ],
-                            'Pneumonia': [
-                                { emoji: '🏥', text: 'Seek immediate medical care - this is serious' },
-                                { emoji: '💊', text: 'Complete the full course of prescribed antibiotics' },
-                                { emoji: '🛌', text: 'Get plenty of rest to help your body recover' },
-                                { emoji: '🚭', text: 'Avoid smoking and second-hand smoke' }
-                            ],
-                            'Bronchitis': [
-                                { emoji: '💨', text: 'Avoid lung irritants like smoke and pollution' },
-                                { emoji: '🧪', text: 'Use a humidifier to ease breathing' },
-                                { emoji: '🛌', text: 'Rest and avoid strenuous activities' },
-                                { emoji: '🚰', text: 'Drink plenty of water to thin mucus' }
-                            ],
-                            'COVID-19': [
-                                { emoji: '😷', text: 'Isolate and wear a mask to prevent spread' },
-                                { emoji: '🧪', text: 'Take a COVID-19 test and follow guidance' },
-                                { emoji: '💧', text: 'Hydrate and monitor temperature/oxygen' },
-                                { emoji: '🏥', text: 'Seek urgent care if oxygen saturation < 92% or chest pain' }
-                            ],
-                            'Asthma': [
-                                { emoji: '💨', text: 'Use rescue inhaler per action plan' },
-                                { emoji: '🧪', text: 'Avoid triggers; monitor peak flow if available' },
-                                { emoji: '🛌', text: 'Rest and practice pursed-lip breathing' },
-                                { emoji: '🏥', text: 'Seek care if symptoms do not improve after inhaler' }
-                            ],
-                            'Migraine': [
-                                { emoji: '🌑', text: 'Rest in dark, quiet room' },
-                                { emoji: '💊', text: 'Use triptans/NSAIDs per doctor guidance' },
-                                { emoji: '💧', text: 'Hydrate; avoid trigger foods' },
-                                { emoji: '🧊', text: 'Cold compress and relaxation techniques' }
-                            ],
-                            'Gastroenteritis': [
-                                { emoji: '💧', text: 'Oral rehydration solution frequently' },
-                                { emoji: '🥣', text: 'BRAT diet; avoid dairy and high-fat foods' },
-                                { emoji: '🧼', text: 'Hand hygiene to prevent spread' },
-                                { emoji: '⚠️', text: 'Seek care if blood in stool or severe dehydration' }
-                            ],
-                            'Urinary Tract Infection': [
-                                { emoji: '🚰', text: 'Hydrate; do not delay urination' },
-                                { emoji: '💊', text: 'Take prescribed antibiotics fully' },
-                                { emoji: '🧼', text: 'Hygiene practices and wipe front-to-back' },
-                                { emoji: '⚠️', text: 'Seek care if fever, flank pain (possible kidney infection)' }
-                            ],
-                            'Allergy': [
-                                { emoji: '🤧', text: 'Use antihistamines; avoid known allergens' },
-                                { emoji: '🧪', text: 'Consider nasal corticosteroids or saline rinses' },
-                                { emoji: '🚭', text: 'Avoid smoke and irritants' },
-                                { emoji: '🏥', text: 'Seek urgent care if swelling or breathing difficulty' }
-                            ],
-                            'default': [
-                                { emoji: '🏥', text: 'Consult a doctor for proper diagnosis' },
-                                { emoji: '💧', text: 'Stay hydrated and get plenty of rest' },
-                                { emoji: '🍎', text: 'Maintain a healthy diet rich in vitamins' },
-                                { emoji: '🧼', text: 'Practice good hygiene to prevent spread' }
-                            ]
-                        };
-                        
-                        // Combine symptom-specific and disease-specific precautions
-                        let combinedPrecautions = [];
-                        
-                        // Add symptom-specific precautions
-                        if (symptoms && symptoms.length > 0) {
-                            symptoms.forEach(symptom => {
-                                if (symptomPrecautionsMap[symptom]) {
-                                    // Add 1-2 precautions from each symptom to avoid too many
-                                    combinedPrecautions.push(...symptomPrecautionsMap[symptom].slice(0, 2));
-                                }
-                            });
-                        }
-                        
-                        // Add disease-specific precautions
-                        const diseasePrecautions = diseasePrecautionsMap[disease] || diseasePrecautionsMap['default'];
-                        combinedPrecautions.push(...diseasePrecautions);
-                        
-                        // Remove duplicates and limit to 6 precautions
-                        const uniquePrecautions = [];
-                        const textSet = new Set();
-                        
-                        for (const precaution of combinedPrecautions) {
-                            if (!textSet.has(precaution.text) && uniquePrecautions.length < 8) {
-                                textSet.add(precaution.text);
-                                uniquePrecautions.push(precaution);
-                            }
-                        }
-                        
-                        return uniquePrecautions;
-                    };
-                    
-                    // Get precautions based on both symptoms and disease
-                    const precautions = getSymptomPrecautions(selectedSymptoms, data.disease);
-                    
-                    // Add precautions with animations and emojis
-                    resultsHTML += `
-                        <div class="precautions-section">
-                            <h3 style="color: #e74c3c; margin-bottom: 10px;">⚠️ Precautions for Your Symptoms ⚠️</h3>
-                            <ul style="list-style-type: none; padding-left: 5px;">
-                    `;
-                    
-                    // Add each precaution with staggered animation delay
-                    precautions.forEach((precaution, index) => {
-                        const delay = 0.5 + (index * 0.2);
-                        const priorityLabel = index === 0 ? '<span class="badge-priority">First priority</span> ' : '';
-                        resultsHTML += `
-                            <li class="precaution-item" style="animation-delay: ${delay}s;">
-                                ${priorityLabel}<span style="display: inline-block; animation: pulse 2s infinite;">${precaution.emoji}</span> ${precaution.text}
-                            </li>
-                        `;
-                    });
-                    
-                    resultsHTML += `
-                            </ul>
-                        </div>
-                    `;
-                    
-                    // Add disclaimer
-                    resultsHTML += `<div class="disclaimer" style="animation: fadeIn 1.5s ease-in-out;">This is only a prediction based on your symptoms. Please consult with a healthcare professional for proper diagnosis.</div>`;
-                    
-                    // Add bot message with results
-                    addBotMessage(resultsHTML, true);
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    hideTypingIndicator();
-                    addBotMessage("I'm having trouble analyzing your symptoms. Please try again later.");
-                });
-            }
-        });
-        
-        // Additional JavaScript functions continue here
-        // Function to show vitals form and hide symptoms form
-        function showVitalsForm() {
-            document.getElementById('vitalsPredictionCard').style.display = 'block';
-            document.getElementById('symptomPredictionCard').style.display = 'none';
-            document.getElementById('vitals-tab').classList.add('active');
-            document.getElementById('symptoms-tab').classList.remove('active');
-            // Hide results when switching tabs
-            document.querySelector('.result-card').style.display = 'none';
-        }
-        
-        // Function to show symptoms form and hide vitals form
-        function showSymptomsForm() {
-            document.getElementById('vitalsPredictionCard').style.display = 'none';
-            document.getElementById('symptomPredictionCard').style.display = 'block';
-            document.getElementById('symptoms-tab').classList.add('active');
-            document.getElementById('vitals-tab').classList.remove('active');
-            // Hide results when switching tabs
-            document.querySelector('.result-card').style.display = 'none';
-        }
-        
-        // Function to display disease probabilities
-        function displayProbabilities(probabilities) {
-            const container = document.getElementById('probabilitiesContainer');
-            container.innerHTML = '';
-            
-            // Sort diseases by probability in descending order
-            const sortedDiseases = Object.keys(probabilities).sort((a, b) => {
-                return probabilities[b] - probabilities[a];
-            });
-            
-            sortedDiseases.forEach(disease => {
-                const probability = probabilities[disease];
-                const row = document.createElement('div');
-                row.className = 'row mb-2';
-                
-                const diseaseCol = document.createElement('div');
-                diseaseCol.className = 'col-6 text-start';
-                diseaseCol.textContent = disease;
-                
-                const probCol = document.createElement('div');
-                probCol.className = 'col-6 text-end';
-                probCol.textContent = `${probability.toFixed(2)}%`;
-                
-                row.appendChild(diseaseCol);
-                row.appendChild(probCol);
-                container.appendChild(row);
-                
-                // Add progress bar
-                const progressRow = document.createElement('div');
-                progressRow.className = 'row mb-3';
-                
-                const progressCol = document.createElement('div');
-                progressCol.className = 'col-12';
-                
-                const progressBar = document.createElement('div');
-                progressBar.className = 'progress';
-                progressBar.style.height = '10px';
-                
-                const progressBarInner = document.createElement('div');
-                progressBarInner.className = 'progress-bar';
-                progressBarInner.style.width = `${probability}%`;
-                progressBarInner.style.backgroundColor = '#4a6fdc';
-                
-                progressBar.appendChild(progressBarInner);
-                progressCol.appendChild(progressBar);
-                progressRow.appendChild(progressCol);
-                container.appendChild(progressRow);
-            });
-            
-            document.getElementById('allProbabilities').style.display = 'block';
-        }
-        
-        // All old form event listeners and related code removed as we're now using the chatbot interface
-        
-        // Advanced Dashboard and Analytics Functions
-        let analyticsData = {
-            totalPredictions: 0,
-            accuracyRate: 95.2,
-            avgSymptoms: 4.7,
-            uniqueDiseases: 132,
-            predictionHistory: [],
-            symptomFrequency: {},
-            diseaseDistribution: {}
-        };
-        
-        let charts = {};
-        
-        function toggleDashboard() {
-            const dashboard = document.getElementById('dashboardContainer');
-            if (dashboard.style.display === 'none' || dashboard.style.display === '') {
-                dashboard.style.display = 'flex';
-                initializeCharts();
-                updateDashboardStats();
-            } else {
-                dashboard.style.display = 'none';
-            }
-        }
-        
-        function toggleSettings() {
-            const settings = document.getElementById('settingsPanel');
-            if (settings.style.display === 'none' || settings.style.display === '') {
-                settings.style.display = 'block';
-            } else {
-                settings.style.display = 'none';
-            }
-        }
-        
-        function initializeCharts() {
-            if (typeof Chart === 'undefined') return;
-            
-            // Trend Chart
-            const trendCtx = document.getElementById('trendChart');
-            if (trendCtx && !charts.trend) {
-                charts.trend = new Chart(trendCtx, {
-                    type: 'line',
-                    data: {
-                        labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
-                        datasets: [{
-                            label: 'Predictions',
-                            data: [12, 19, 15, 25, 22, 30],
-                            borderColor: '#4a6fdc',
-                            backgroundColor: 'rgba(74, 111, 220, 0.1)',
-                            tension: 0.4
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: {
-                                display: false
-                            }
-                        }
-                    }
-                });
-            }
-            
-            // Symptoms Chart
-            const symptomsCtx = document.getElementById('symptomsChart');
-            if (symptomsCtx && !charts.symptoms) {
-                charts.symptoms = new Chart(symptomsCtx, {
-                    type: 'doughnut',
-                    data: {
-                        labels: ['Fever', 'Cough', 'Headache', 'Fatigue', 'Others'],
-                        datasets: [{
-                            data: [30, 25, 20, 15, 10],
-                            backgroundColor: [
-                                '#4a6fdc',
-                                '#48c6ef',
-                                '#667eea',
-                                '#764ba2',
-                                '#f093fb'
-                            ]
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false
-                    }
-                });
-            }
-            
-            // Disease Chart
-            const diseaseCtx = document.getElementById('diseaseChart');
-            if (diseaseCtx && !charts.disease) {
-                charts.disease = new Chart(diseaseCtx, {
-                    type: 'bar',
-                    data: {
-                        labels: ['Common Cold', 'Flu', 'Migraine', 'Allergy'],
-                        datasets: [{
-                            label: 'Frequency',
-                            data: [45, 35, 25, 20],
-                            backgroundColor: '#4a6fdc'
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: {
-                                display: false
-                            }
-                        }
-                    }
-                });
-            }
-        }
-        
-        function updateDashboardStats() {
-            document.getElementById('totalPredictions').textContent = analyticsData.totalPredictions;
-            document.getElementById('accuracyRate').textContent = analyticsData.accuracyRate + '%';
-            document.getElementById('avgSymptoms').textContent = analyticsData.avgSymptoms;
-            document.getElementById('uniqueDiseases').textContent = analyticsData.uniqueDiseases;
-        }
-        
-        function exportData(format) {
-            showNotification(`Exporting data in ${format.toUpperCase()} format...`, 'info');
-            
-            setTimeout(() => {
-                const data = {
-                    timestamp: new Date().toISOString(),
-                    analytics: analyticsData,
-                    predictions: analyticsData.predictionHistory
-                };
-                
-                if (format === 'json') {
-                    downloadJSON(data, 'analytics-data.json');
-                } else if (format === 'csv') {
-                    downloadCSV(data, 'analytics-data.csv');
-                } else if (format === 'pdf') {
-                    generatePDF(data);
-                }
-                
-                showNotification(`Data exported successfully!`, 'success');
-            }, 1000);
-        }
-        
-        function downloadJSON(data, filename) {
-            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = filename;
-            a.click();
-            URL.revokeObjectURL(url);
-        }
-        
-        function downloadCSV(data, filename) {
-            let csv = 'Date,Symptoms,Prediction,Confidence\n';
-            data.predictions.forEach(pred => {
-                csv += `${pred.date},${pred.symptoms.join(';')},${pred.prediction},${pred.confidence}\n`;
-            });
-            
-            const blob = new Blob([csv], { type: 'text/csv' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = filename;
-            a.click();
-            URL.revokeObjectURL(url);
-        }
-        
-        function generatePDF(data) {
-            if (typeof jsPDF === 'undefined') {
-                showNotification('PDF generation not available', 'error');
-                return;
-            }
-            
-            const doc = new jsPDF();
-            doc.text('Disease Prediction Analytics Report', 20, 20);
-            doc.text(`Generated: ${new Date().toLocaleDateString()}`, 20, 30);
-            doc.text(`Total Predictions: ${data.analytics.totalPredictions}`, 20, 50);
-            doc.text(`Accuracy Rate: ${data.analytics.accuracyRate}%`, 20, 60);
-            doc.save('analytics-report.pdf');
-        }
-        
-        function quickExport() {
-            exportData('json');
-        }
-        
-        function showNotification(message, type = 'info') {
-            const notification = document.getElementById('notification');
-            notification.textContent = message;
-            notification.className = `notification ${type} show`;
-            
-            setTimeout(() => {
-                notification.classList.remove('show');
-            }, 3000);
-        }
-        
-        function changeTheme() {
-            const theme = document.getElementById('themeSelect').value;
-            document.body.className = theme === 'dark' ? 'dark-theme' : '';
-            localStorage.setItem('theme', theme);
-        }
-        
-        function toggleAutoSave() {
-            const autoSave = document.getElementById('autoSave').checked;
-            localStorage.setItem('autoSave', autoSave);
-            showNotification(`Auto-save ${autoSave ? 'enabled' : 'disabled'}`, 'info');
-        }
-        
-        function toggleConfidence() {
-            const showConfidence = document.getElementById('showConfidence').checked;
-            localStorage.setItem('showConfidence', showConfidence);
-        }
-        
-        function toggleNotifications() {
-            const enableNotifications = document.getElementById('enableNotifications').checked;
-            localStorage.setItem('enableNotifications', enableNotifications);
-        }
-        
-        function updateSensitivity() {
-            const sensitivity = document.getElementById('sensitivitySlider').value;
-            document.getElementById('sensitivityValue').textContent = sensitivity;
-            localStorage.setItem('sensitivity', sensitivity);
-        }
-        
-        function updateMaxSymptoms() {
-            const maxSymptoms = document.getElementById('maxSymptoms').value;
-            localStorage.setItem('maxSymptoms', maxSymptoms);
-        }
-        
-        function resetSettings() {
-            localStorage.clear();
-            location.reload();
-        }
-        
-        // Load saved settings (robust to early execution and missing DOM)
-        function loadSettings() {
-            const theme = localStorage.getItem('theme') || 'light';
-            const autoSave = localStorage.getItem('autoSave') === 'true';
-            const showConfidence = localStorage.getItem('showConfidence') !== 'false';
-            const enableNotifications = localStorage.getItem('enableNotifications') !== 'false';
-            const sensitivity = localStorage.getItem('sensitivity') || '0.7';
-            const maxSymptoms = localStorage.getItem('maxSymptoms') || '10';
-
-            const themeEl = document.getElementById('themeSelect');
-            if (themeEl) themeEl.value = theme;
-            const autoSaveEl = document.getElementById('autoSave');
-            if (autoSaveEl) autoSaveEl.checked = autoSave;
-            const showConfidenceEl = document.getElementById('showConfidence');
-            if (showConfidenceEl) showConfidenceEl.checked = showConfidence;
-            const enableNotificationsEl = document.getElementById('enableNotifications');
-            if (enableNotificationsEl) enableNotificationsEl.checked = enableNotifications;
-            const sensitivitySliderEl = document.getElementById('sensitivitySlider');
-            if (sensitivitySliderEl) sensitivitySliderEl.value = sensitivity;
-            const sensitivityValueEl = document.getElementById('sensitivityValue');
-            if (sensitivityValueEl) sensitivityValueEl.textContent = sensitivity;
-            const maxSymptomsEl = document.getElementById('maxSymptoms');
-            if (maxSymptomsEl) maxSymptomsEl.value = maxSymptoms;
-
-            if (theme === 'dark') {
-                document.body.className = 'dark-theme';
-            }
-        }
-
-        // Initialize settings when DOM is ready
-        document.addEventListener('DOMContentLoaded', loadSettings);
-        
-        // Track predictions for analytics
-        function trackPrediction(symptoms, prediction, confidence) {
-            analyticsData.totalPredictions++;
-            analyticsData.predictionHistory.push({
-                date: new Date().toISOString(),
-                symptoms: symptoms,
-                prediction: prediction,
-                confidence: confidence
-            });
-            
-            // Update symptom frequency
-            symptoms.forEach(symptom => {
-                analyticsData.symptomFrequency[symptom] = (analyticsData.symptomFrequency[symptom] || 0) + 1;
-            });
-            
-            // Update disease distribution
-            analyticsData.diseaseDistribution[prediction] = (analyticsData.diseaseDistribution[prediction] || 0) + 1;
-            
-            // Save to localStorage if auto-save is enabled
-            if (localStorage.getItem('autoSave') === 'true') {
-                localStorage.setItem('analyticsData', JSON.stringify(analyticsData));
-            }
-        }
-        
-        // Load analytics data from localStorage
-        const savedAnalytics = localStorage.getItem('analyticsData');
-        if (savedAnalytics) {
-            analyticsData = { ...analyticsData, ...JSON.parse(savedAnalytics) };
-        }
-    </script>
-
-    <!-- Advanced Toolbar -->
-    <div class="toolbar">
-        <button class="toolbar-btn dashboard" onclick="toggleDashboard()" title="Analytics Dashboard">
-            📊
-        </button>
-        <button class="toolbar-btn export" onclick="quickExport()" title="Quick Export">
-            💾
-        </button>
-        <button class="toolbar-btn settings" onclick="toggleSettings()" title="Settings">
-            ⚙️
-        </button>
-        <button class="toolbar-btn chatbot" onclick="toggleChatbot()" title="Health Chatbot">
-            💬
-        </button>
+    <div class="brand-text">
+      <h1>MedAI</h1>
+      <p>AI symptom assistant</p>
     </div>
+  </div>
+  <button id="theme-toggle" class="icon-btn" title="Toggle theme">
+    <svg id="theme-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+  </button>
+</header>
 
-    <!-- Analytics Dashboard -->
-    <div id="dashboardContainer" class="dashboard-container">
-        <div class="dashboard-content">
-            <div class="dashboard-header">
-                <h2 class="dashboard-title">Analytics Dashboard</h2>
-                <button class="close-dashboard" onclick="toggleDashboard()">×</button>
-            </div>
-            
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-number" id="totalPredictions">0</div>
-                    <div class="stat-label">Total Predictions</div>
-                </div>
-                <div class="stat-card success">
-                    <div class="stat-number" id="accuracyRate">95.2%</div>
-                    <div class="stat-label">Accuracy Rate</div>
-                </div>
-                <div class="stat-card warning">
-                    <div class="stat-number" id="avgSymptoms">4.7</div>
-                    <div class="stat-label">Avg Symptoms</div>
-                </div>
-                <div class="stat-card info">
-                    <div class="stat-number" id="uniqueDiseases">132</div>
-                    <div class="stat-label">Diseases Covered</div>
-                </div>
-            </div>
-
-            <div class="chart-container">
-                <h3 class="chart-title">Disease Prediction Trends</h3>
-                <div class="chart-wrapper large">
-                    <canvas id="trendChart"></canvas>
-                </div>
-            </div>
-
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 25px;">
-                <div class="chart-container">
-                    <h3 class="chart-title">Top Symptoms</h3>
-                    <div class="chart-wrapper">
-                        <canvas id="symptomsChart"></canvas>
-                    </div>
-                </div>
-                
-                <div class="chart-container">
-                    <h3 class="chart-title">Disease Distribution</h3>
-                    <div class="chart-wrapper">
-                        <canvas id="diseaseChart"></canvas>
-                    </div>
-                </div>
-            </div>
-
-            <div class="chart-container">
-                <h3 class="chart-title">Model Performance Metrics</h3>
-                <div class="progress-container">
-                    <div class="progress-bar" style="width: 95%;">Accuracy: 95.2%</div>
-                </div>
-                <div class="progress-container">
-                    <div class="progress-bar" style="width: 92%;">Precision: 92.1%</div>
-                </div>
-                <div class="progress-container">
-                    <div class="progress-bar" style="width: 94%;">Recall: 94.3%</div>
-                </div>
-                <div class="progress-container">
-                    <div class="progress-bar" style="width: 93%;">F1-Score: 93.2%</div>
-                </div>
-            </div>
-
-            <div class="export-section">
-                <h3>Export Analytics Data</h3>
-                <p>Download comprehensive reports and analytics data in various formats</p>
-                <div class="export-buttons">
-                    <button class="export-btn csv" onclick="exportData('csv')">
-                        📄 Export CSV
-                    </button>
-                    <button class="export-btn pdf" onclick="exportData('pdf')">
-                        📋 Export PDF
-                    </button>
-                    <button class="export-btn json" onclick="exportData('json')">
-                        📊 Export JSON
-                    </button>
-                </div>
-            </div>
-        </div>
+<main>
+  <div class="hero">
+    <h2>Describe your symptoms</h2>
+    <p>Chat naturally or pick symptoms below — MedAI will explain likely causes and run an ML-based prediction.</p>
+    <div class="disclaimer-pill">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
+      Educational use only — not a medical diagnosis
     </div>
+  </div>
 
-    <!-- Settings Panel -->
-    <div id="settingsPanel" class="settings-panel">
-        <div class="settings-header">
-            <h3 class="settings-title">Settings</h3>
-            <button class="close-settings" onclick="toggleSettings()">×</button>
-        </div>
-        
-        <div class="setting-group">
-            <label class="setting-label">Theme</label>
-            <select class="setting-control" id="themeSelect" onchange="changeTheme()">
-                <option value="light">Light</option>
-                <option value="dark">Dark</option>
-                <option value="auto">Auto</option>
-            </select>
-        </div>
-        
-        <div class="setting-group">
-            <label class="setting-label">Auto-save Predictions</label>
-            <label class="toggle-switch">
-                <input type="checkbox" id="autoSave" onchange="toggleAutoSave()">
-                <span class="slider"></span>
-            </label>
-        </div>
-        
-        <div class="setting-group">
-            <label class="setting-label">Show Confidence Scores</label>
-            <label class="toggle-switch">
-                <input type="checkbox" id="showConfidence" checked onchange="toggleConfidence()">
-                <span class="slider"></span>
-            </label>
-        </div>
-        
-        <div class="setting-group">
-            <label class="setting-label">Enable Notifications</label>
-            <label class="toggle-switch">
-                <input type="checkbox" id="enableNotifications" checked onchange="toggleNotifications()">
-                <span class="slider"></span>
-            </label>
-        </div>
-        
-        <div class="setting-group">
-            <label class="setting-label">Model Sensitivity</label>
-            <input type="range" class="setting-control" id="sensitivitySlider" min="0.1" max="1.0" step="0.1" value="0.7" onchange="updateSensitivity()">
-            <small>Current: <span id="sensitivityValue">0.7</span></small>
-        </div>
-        
-        <div class="setting-group">
-            <label class="setting-label">Max Symptoms</label>
-            <input type="number" class="setting-control" id="maxSymptoms" min="1" max="20" value="10" onchange="updateMaxSymptoms()">
-        </div>
-        
-        <div class="setting-group">
-            <button class="export-btn" onclick="resetSettings()" style="width: 100%; margin-top: 20px;">
-                🔄 Reset to Defaults
-            </button>
-        </div>
+  <div id="chip-rail" class="chip-rail"></div>
+
+  <div id="analyze-bar" class="analyze-bar">
+    <span><strong id="selected-count">0</strong> symptoms selected</span>
+    <button id="analyze-btn" class="btn btn-primary">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 5v5l3 3"/></svg>
+      Run AI Analysis
+    </button>
+  </div>
+
+  <section class="chat-panel">
+    <div id="chat-scroll" class="chat-scroll">
+      <div class="msg-row bot">
+        <div class="avatar bot">🤖</div>
+        <div class="bubble">Hi, I'm MedAI. Tell me what you're feeling — for example "fever and cough for 2 days" — or tap symptoms above.</div>
+      </div>
+      <div id="typing-row" class="msg-row bot typing-row">
+        <div class="avatar bot">🤖</div>
+        <div class="typing-dots"><span></span><span></span><span></span></div>
+      </div>
     </div>
-
-    <!-- Loading Overlay -->
-    <div id="loadingOverlay" class="loading-overlay">
-        <div class="loading-spinner"></div>
+    <div class="composer">
+      <textarea id="composer-input" rows="1" placeholder="Describe your symptoms..." maxlength="500"></textarea>
+      <button id="send-btn" class="send-btn" title="Send">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+      </button>
     </div>
+  </section>
 
-    <!-- Notification Container -->
-    <div id="notification" class="notification"></div>
+  <div id="diagnosis-container"></div>
+</main>
 
-    <!-- Health Assistant Chatbot -->
-    <div id="chatbotPanel" class="settings-panel" style="max-width: 520px; position: fixed; right: 20px; bottom: 80px; z-index: 1000; display: none;">
-        <div class="settings-header">
-            <h3 class="settings-title">Health Assistant Chatbot</h3>
-            <button class="close-settings" onclick="toggleChatbot()">×</button>
-        </div>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-            <div style="grid-column: 1 / span 2;">
-                <div id="chatMessages" style="height: 240px; overflow-y: auto; background: var(--panel-bg,#fff); border-radius: 8px; padding: 10px; border: 1px solid #ddd;"></div>
-                <div style="display:flex; gap:8px; margin-top:8px;">
-                    <input id="chatInput" type="text" class="setting-control" placeholder="Describe your symptoms..." style="flex:1;">
-                    <button class="export-btn" id="chatSendBtn" onclick="sendChat()">Send</button>
-                </div>
-            </div>
-            <div>
-                <input id="symptomSearch" type="text" class="setting-control" placeholder="Search symptoms..." oninput="filterSymptomList()">
-                <div id="symptomList" style="height: 220px; overflow-y:auto; border:1px solid #ddd; border-radius:8px; padding:8px; margin-top:6px;"></div>
-            </div>
-            <div>
-                <div id="symptomDetail" style="height: 250px; overflow-y:auto; border:1px solid #ddd; border-radius:8px; padding:8px;"></div>
-            </div>
-        </div>
-    </div>
+<footer>
+  MedAI is a demonstration project and does not provide medical advice. In an emergency, contact local emergency services.
+</footer>
 
-    <script>
-    function toggleChatbot(){
-      const panel = document.getElementById('chatbotPanel');
-      if (!panel) return;
-      const visible = panel.style.display !== 'none';
-      panel.style.display = visible ? 'none' : 'block';
-      if (!visible) {
-        if (!panel.dataset.init) {
-          panel.dataset.init = '1';
-          renderMessage('assistant','Hi! I can help with symptoms. List what you feel, duration, and severity.');
-          loadSymptomCatalog();
-        }
-      }
+<script>
+(function () {
+  const chatScroll = document.getElementById('chat-scroll');
+  const typingRow = document.getElementById('typing-row');
+  const input = document.getElementById('composer-input');
+  const sendBtn = document.getElementById('send-btn');
+  const chipRail = document.getElementById('chip-rail');
+  const analyzeBar = document.getElementById('analyze-bar');
+  const analyzeBtn = document.getElementById('analyze-btn');
+  const selectedCountEl = document.getElementById('selected-count');
+  const diagnosisContainer = document.getElementById('diagnosis-container');
+
+  const selectedSymptoms = new Set();
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = String(str);
+    return div.innerHTML;
+  }
+
+  function scrollToBottom() {
+    chatScroll.scrollTop = chatScroll.scrollHeight;
+  }
+
+  function addUserBubble(text) {
+    const row = document.createElement('div');
+    row.className = 'msg-row user';
+    row.innerHTML = `<div class="avatar user">🧑</div><div class="bubble">${escapeHtml(text)}</div>`;
+    chatScroll.insertBefore(row, typingRow);
+    scrollToBottom();
+  }
+
+  function buildInsightCard(item) {
+    const wrap = document.createElement('div');
+    wrap.className = 'insight-card';
+
+    let html = `
+      <div class="insight-head">
+        <span class="insight-title">${escapeHtml(item.symptom || item.normalized_symptom || '')}</span>
+        ${item.prevalence_pct != null ? `<span class="prevalence-tag">${item.prevalence_pct}% of cases</span>` : ''}
+      </div>
+      <p class="insight-cause">${escapeHtml(item.cause || '')}</p>
+    `;
+
+    if (item.top_diseases && item.top_diseases.length) {
+      html += `<div class="tag-row">${item.top_diseases.slice(0, 5).map(d =>
+        `<span class="tag">${escapeHtml(d.name)} · ${d.percent}%</span>`).join('')}</div>`;
     }
-    function renderMessage(role, text){
-      const box = document.getElementById('chatMessages');
-      if (!box) return;
-      const div = document.createElement('div');
-      div.style.margin = '6px 0';
-      div.innerHTML = `<strong>${role === 'user' ? 'You' : 'Assistant'}:</strong> ${text}`;
-      box.appendChild(div);
-      box.scrollTop = box.scrollHeight;
+
+    if (item.red_flags && item.red_flags.length) {
+      html += `
+        <div class="red-flag-box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
+          <div>
+            <strong style="font-size:0.78rem;">Seek care if:</strong>
+            <ul>${item.red_flags.map(f => `<li>${escapeHtml(f)}</li>`).join('')}</ul>
+          </div>
+        </div>`;
     }
-    async function sendChat(){
-      const input = document.getElementById('chatInput');
-      if (!input) return;
-      const msg = (input.value || '').trim();
-      if (!msg) return;
-      renderMessage('user', msg);
-      input.value = '';
-      try{
-        const res = await fetch('/chat', {
-          method: 'POST',
-          headers: {'Content-Type':'application/json'},
-          body: JSON.stringify({message: msg})
-        });
-        const data = await res.json();
-        if (data.error){
-          renderMessage('assistant', 'Error: ' + data.error);
-          return;
-        }
-        renderMessage('assistant', data.reply || 'I have processed your symptoms.');
-        if (Array.isArray(data.insights) && data.insights.length){
-          const lines = data.insights.map(i => {
-            const td = (i.top_diseases || []).slice(0,3).map(d => `${d.name} (${getDiseaseMedicalName(d.name)}) (${d.percent}%)`).join(', ');
-            const rf = (i.red_flags || []).slice(0,3).join('; ');
-            const adv = (i.advice || []).slice(0,3).join('; ');
-            const med = i.medical_name || getMedicalName(i.symptom);
-            return `• ${i.symptom} (${med}): ${i.cause || ''}${td ? ' | Conditions: ' + td : ''}${rf ? ' | Red flags: ' + rf : ''}${adv ? ' | Advice: ' + adv : ''}`;
-          }).join('<br>');
-          renderMessage('assistant', lines);
-        }
-      }catch(e){
-        renderMessage('assistant', 'Network error: ' + e.message);
-      }
+
+    if (item.advice && item.advice.length) {
+      html += `<ul class="advice-list">${item.advice.map(a => `<li>${escapeHtml(a)}</li>`).join('')}</ul>`;
     }
-    let symptomCatalog = [];
-    async function loadSymptomCatalog(){
-      try{
-        const res = await fetch('/symptom_catalog');
-        const data = await res.json();
-        symptomCatalog = Array.isArray(data.catalog) ? data.catalog : [];
-        renderSymptomList(symptomCatalog);
-      }catch(e){
-        console.warn('Catalog load error', e);
-      }
+
+    wrap.innerHTML = html;
+    return wrap;
+  }
+
+  function addBotResponse(data) {
+    const row = document.createElement('div');
+    row.className = 'msg-row bot';
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
+    bubble.style.maxWidth = '92%';
+
+    const introText = document.createElement('div');
+    introText.textContent = data.reply || '';
+    bubble.appendChild(introText);
+
+    if (data.insights && data.insights.length) {
+      data.insights.forEach(item => bubble.appendChild(buildInsightCard(item)));
     }
-    function renderSymptomList(items){
-      const list = document.getElementById('symptomList');
-      if (!list) return;
-      list.innerHTML = '';
-      items.slice(0,500).forEach(it => {
-        const a = document.createElement('div');
-        a.style.cursor = 'pointer';
-        a.style.padding = '6px 8px';
-        a.style.borderBottom = '1px dashed #eee';
-        a.textContent = it.symptom;
-        a.onclick = () => showSymptom(it);
-        list.appendChild(a);
+
+    if (data.suggestions && data.suggestions.length) {
+      const row2 = document.createElement('div');
+      row2.className = 'tag-row';
+      row2.style.marginTop = '0.5rem';
+      data.suggestions.forEach(s => {
+        const tag = document.createElement('span');
+        tag.className = 'tag';
+        tag.style.cursor = 'pointer';
+        tag.textContent = s;
+        tag.onclick = () => { input.value = s; input.focus(); };
+        row2.appendChild(tag);
       });
+      bubble.appendChild(row2);
     }
-    function filterSymptomList(){
-      const q = (document.getElementById('symptomSearch')?.value || '').toLowerCase();
-      if (!symptomCatalog.length) return;
-      const filtered = symptomCatalog.filter(it => it.symptom.includes(q));
-      renderSymptomList(filtered);
+
+    row.innerHTML = `<div class="avatar bot">🤖</div>`;
+    row.appendChild(bubble);
+    chatScroll.insertBefore(row, typingRow);
+    scrollToBottom();
+  }
+
+  function showTyping() { typingRow.classList.add('show'); scrollToBottom(); }
+  function hideTyping() { typingRow.classList.remove('show'); }
+
+  async function sendMessage() {
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = '';
+    autoResize();
+    sendBtn.disabled = true;
+
+    addUserBubble(text);
+    showTyping();
+
+    try {
+      const res = await fetch('/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text })
+      });
+      const data = await res.json();
+      hideTyping();
+      addBotResponse(data);
+
+      if (data.insights) {
+        data.insights.forEach(i => {
+          const s = i.normalized_symptom || i.symptom;
+          if (s) selectedSymptoms.add(s);
+        });
+        syncChipsWithSelection();
+        updateAnalyzeBar();
+      }
+    } catch (err) {
+      hideTyping();
+      addBotResponse({ reply: 'Sorry, something went wrong reaching the server. Please try again.' });
+    } finally {
+      sendBtn.disabled = false;
     }
-    function showSymptom(it){
-      const box = document.getElementById('symptomDetail');
-      if (!box) return;
-      const td = (it.top_diseases || []).map(d => `${d.name} (${getDiseaseMedicalName(d.name)}) (${d.percent}%)`).join(', ');
-      const co = (it.co_symptoms || []).map(s => `${s.name} (${s.count})`).join(', ');
-      const rf = (it.red_flags || []).join('; ');
-      const adv = (it.advice || []).join('; ');
-      
-      // Use the global getMedicalName function instead of a local map
-      const med = getMedicalName(it.symptom);
-      
-      box.innerHTML = `
-        <h4 style="margin:4px 0;">${it.symptom}</h4>
-        <p><strong>Medical term:</strong> ${med}</p>
-        <p>${it.cause || 'Cause information not available.'}</p>
-        <p><strong>Prevalence:</strong> ${it.prevalence_pct ?? 'N/A'}%</p>
-        <p><strong>Top diseases:</strong> ${td || 'N/A'}</p>
-        <p><strong>Co-symptoms:</strong> ${co || 'N/A'}</p>
-        <p><strong>Red flags:</strong> ${rf || 'N/A'}</p>
-        <p><strong>Home advice:</strong> ${adv || 'N/A'}</p>
-      `;
+  }
+
+  function autoResize() {
+    input.style.height = 'auto';
+    input.style.height = Math.min(input.scrollHeight, 120) + 'px';
+  }
+
+  input.addEventListener('input', autoResize);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
     }
-    document.addEventListener('DOMContentLoaded', () => {
-      // Optional: open chatbot on load
-      // toggleChatbot();
+  });
+  sendBtn.addEventListener('click', sendMessage);
+
+  function syncChipsWithSelection() {
+    chipRail.querySelectorAll('.chip').forEach(chip => {
+      chip.classList.toggle('selected', selectedSymptoms.has(chip.dataset.symptom));
     });
-    </script>
+  }
+
+  function updateAnalyzeBar() {
+    selectedCountEl.textContent = selectedSymptoms.size;
+    analyzeBar.classList.toggle('show', selectedSymptoms.size >= 2);
+  }
+
+  fetch('/symptoms')
+    .then(r => r.json())
+    .then(data => {
+      (data.symptoms || []).forEach(s => {
+        const chip = document.createElement('span');
+        chip.className = 'chip';
+        chip.textContent = s.replace(/_/g, ' ');
+        chip.dataset.symptom = s;
+        chip.addEventListener('click', () => {
+          if (selectedSymptoms.has(s)) selectedSymptoms.delete(s);
+          else selectedSymptoms.add(s);
+          syncChipsWithSelection();
+          updateAnalyzeBar();
+        });
+        chipRail.appendChild(chip);
+      });
+    })
+    .catch(() => {});
+
+  function buildDiagnosisCard(data) {
+    const card = document.createElement('div');
+    card.className = 'diagnosis-card';
+
+    const sorted = Object.entries(data.probabilities || {})
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 6);
+
+    let html = `
+      <h3>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 5v5l3 3"/></svg>
+        AI Analysis Result
+      </h3>
+      <div class="diagnosis-top">
+        <span class="name">${escapeHtml(data.disease || 'Unknown')}</span>
+        <span class="conf">${data.confidence}%</span>
+      </div>
+    `;
+
+    sorted.forEach(([name, val]) => {
+      html += `
+        <div class="prob-row">
+          <span class="prob-label">${escapeHtml(name)}</span>
+          <div class="prob-track"><div class="prob-fill" style="width:${Math.min(val, 100)}%"></div></div>
+          <span class="prob-val">${val}%</span>
+        </div>`;
+    });
+
+    card.innerHTML = html;
+    return card;
+  }
+
+  async function analyzeSymptoms() {
+    if (selectedSymptoms.size < 2) return;
+    analyzeBtn.disabled = true;
+    analyzeBtn.textContent = 'Analyzing...';
+
+    try {
+      const res = await fetch('/predict_by_symptoms_ml', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ symptoms: Array.from(selectedSymptoms) })
+      });
+      const data = await res.json();
+      diagnosisContainer.innerHTML = '';
+      if (data.error) {
+        diagnosisContainer.innerHTML = `<div class="diagnosis-card"><p>${escapeHtml(data.error)}</p></div>`;
+      } else {
+        diagnosisContainer.appendChild(buildDiagnosisCard(data));
+        diagnosisContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    } catch (err) {
+      diagnosisContainer.innerHTML = `<div class="diagnosis-card"><p>Could not reach the prediction service. Please try again.</p></div>`;
+    } finally {
+      analyzeBtn.disabled = false;
+      analyzeBtn.innerHTML = `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 5v5l3 3"/></svg>
+        Run AI Analysis`;
+    }
+  }
+  analyzeBtn.addEventListener('click', analyzeSymptoms);
+
+  // Theme
+  const sunPath = 'M12 3v1m0 16v1m9-9h-1M4 12H3m15.36 6.36-.7-.7M6.34 6.34l-.7-.7m12.02 0-.7.7M6.34 17.66l-.7.7M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z';
+  const moonPath = 'M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z';
+  const themeIcon = document.getElementById('theme-icon');
+  const themeToggle = document.getElementById('theme-toggle');
+
+  function applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    themeIcon.innerHTML = `<path d="${theme === 'dark' ? sunPath : moonPath}"/>`;
+    localStorage.setItem('theme', theme);
+  }
+  applyTheme(localStorage.getItem('theme') || 'light');
+  themeToggle.addEventListener('click', () => {
+    const current = document.documentElement.getAttribute('data-theme');
+    applyTheme(current === 'dark' ? 'light' : 'dark');
+  });
+})();
+</script>
 </body>
 </html>
