@@ -13,7 +13,7 @@ A machine learning-powered web application that predicts diseases based on sympt
 - **Dual Prediction Modes**: Vitals-based heuristic check and ML-based symptom prediction
 - **Real-time Predictions**: Instant disease prediction with confidence scores
 - **Comprehensive Symptom Coverage**: 75 symptoms mapped to causes, and a 73-symptom ML feature set covering 21 disease categories
-- **Interactive UI**: Responsive web interface with a symptom-picker chat experience
+- **Modern Chat UI**: Single-page assistant with symptom chips, dark mode, and structured response cards (causes, prevalence, red flags, advice) instead of plain text
 - **Balanced Training Data**: 42,000-row augmented dataset for the ML model
 
 ### Advanced Features
@@ -71,8 +71,7 @@ A machine learning-powered web application that predicts diseases based on sympt
    ```
 
 7. **Access the application**
-   - Web app: `http://127.0.0.1:5000`
-   - Chat UI: `http://127.0.0.1:5000/chat_ui`
+   - Web app: `http://127.0.0.1:5000` (`/chat_ui` redirects here)
 
 ## 📊 Dataset Information
 
@@ -161,7 +160,7 @@ GET /symptom_info?symptom=fever
 | Endpoint | Method | Description |
 |---|---|---|
 | `/` | GET | Main web interface |
-| `/chat_ui` | GET | Chat UI page |
+| `/chat_ui` | GET | Redirects to `/` |
 | `/chat` | POST | Chat-style symptom triage |
 | `/symptoms` | GET | List of known symptoms |
 | `/symptom_catalog` | GET | Full symptom catalog |
@@ -202,10 +201,9 @@ mlproject/
 │   ├── symptom_ml_artifacts.pkl # Trained model + preprocessing artifacts
 │   ├── symptoms_list.json       # Symptom vocabulary
 │   └── diseases_list.json       # Disease categories
-├── 📁 static/                   # CSS/images served by Flask
+├── 📁 static/                   # Assets served by Flask
 ├── 📁 templates/
-│   ├── index.html               # Main web interface
-│   └── chat.html                # Chat UI
+│   └── index.html               # Single-page chat assistant UI
 └── 📁 logs/                     # Rotating log files (created at runtime)
 ```
 
