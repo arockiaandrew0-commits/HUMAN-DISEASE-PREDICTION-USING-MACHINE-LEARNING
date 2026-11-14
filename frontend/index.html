@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MedPredict — Disease Prediction System</title>
+<meta name="description" content="Machine-learning disease prediction from symptoms and vital signs." />
+<meta name="theme-color" content="#0E7490" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@500;600;700;800&family=Noto+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<script>
+  // Set theme before paint to avoid a flash
+  (function () {
+    var t = null;
+    try { t = localStorage.getItem('mp-theme'); } catch (e) {}
+    if (!t) t = window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', t);
+  })();
+</script>
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<!-- Icon sprite (Lucide, ISC licence) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-pulse" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></symbol>
+  <symbol id="i-stethoscope" viewBox="0 0 24 24"><path d="M11 2v2M5 2v2M5 3H4a2 2 0 0 0-2 2v4a6 6 0 0 0 12 0V5a2 2 0 0 0-2-2h-1"/><path d="M8 15a6 6 0 0 0 12 0v-3"/><circle cx="20" cy="10" r="2"/></symbol>
+  <symbol id="i-chat" viewBox="0 0 24 24"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22z"/></symbol>
+  <symbol id="i-heart" viewBox="0 0 24 24"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/><path d="M3.22 12H9.5l.5-1 2 4.5 2-7 1.5 3.5h5.27"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4M12 17h.01"/></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24"><path d="M14.54 21.69a.5.5 0 0 0 .93-.03l6.5-19a.5.5 0 0 0-.63-.63l-19 6.5a.5.5 0 0 0-.03.93l7.93 3.18a2 2 0 0 1 1.11 1.11z"/><path d="m21.85 2.15-10.94 10.94"/></symbol>
+  <symbol id="i-bot" viewBox="0 0 24 24"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2M20 14h2M15 13v2M9 13v2"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></symbol>
+  <symbol id="i-sparkle" viewBox="0 0 24 24"><path d="M9.94 15.5A2 2 0 0 0 8.5 14.06l-6.14-1.58a.5.5 0 0 1 0-.96L8.5 9.94A2 2 0 0 0 9.94 8.5l1.58-6.14a.5.5 0 0 1 .96 0l1.58 6.14a2 2 0 0 0 1.44 1.44l6.14 1.58a.5.5 0 0 1 0 .96l-6.14 1.58a2 2 0 0 0-1.44 1.44l-1.58 6.14a.5.5 0 0 1-.96 0z"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M3 12h.01M3 18h.01M3 6h.01M8 12h13M8 18h13M8 6h13"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></symbol>
+</svg>
+
+<a class="skip-link" href="#main">Skip to main content</a>
+
+<div class="app">
+  <!-- Sidebar (desktop) -->
+  <aside class="sidebar" aria-label="Primary">
+    <div class="brand">
+      <div class="brand-mark"><svg class="i" aria-hidden="true"><use href="#i-pulse"/></svg></div>
+      <div>
+        <div class="brand-name">MedPredict</div>
+        <div class="brand-sub">Disease prediction with ML</div>
+      </div>
+    </div>
+
+    <div class="nav-label">Tools</div>
+    <nav class="nav" aria-label="Main navigation">
+      <a href="#checker" data-view="checker"><svg class="i" aria-hidden="true"><use href="#i-stethoscope"/></svg>Symptom Checker</a>
+      <a href="#assistant" data-view="assistant"><svg class="i" aria-hidden="true"><use href="#i-chat"/></svg>AI Assistant</a>
+      <a href="#vitals" data-view="vitals"><svg class="i" aria-hidden="true"><use href="#i-heart"/></svg>Vitals Check</a>
+    </nav>
+    <div class="nav-label" style="margin-top:12px">Project</div>
+    <nav class="nav" aria-label="Project navigation">
+      <a href="#about" data-view="about"><svg class="i" aria-hidden="true"><use href="#i-info"/></svg>About the Model</a>
+    </nav>
+
+    <div class="sidebar-foot">
+      <div class="status-card" aria-live="polite">
+        <div class="status-row"><span class="status-dot" id="status-dot"></span><span id="status-text">Checking model…</span></div>
+        <div class="status-meta num" id="status-meta">&nbsp;</div>
+      </div>
+      <p class="brand-sub">For education only. Not a substitute for professional medical advice.</p>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <div class="topbar-brand">
+        <div class="brand-mark"><svg class="i" aria-hidden="true"><use href="#i-pulse"/></svg></div>
+        <span class="brand-name">MedPredict</span>
+      </div>
+      <div class="topbar-titles">
+        <h1 class="page-title" id="page-title">Symptom Checker</h1>
+        <p class="page-sub" id="page-sub">Select your symptoms and run a machine-learning prediction.</p>
+      </div>
+      <button class="icon-btn" id="theme-toggle" type="button" aria-label="Switch to dark theme">
+        <svg class="i" aria-hidden="true"><use id="theme-icon" href="#i-moon"/></svg>
+      </button>
+    </header>
+
+    <main id="main" class="content" tabindex="-1">
+
+      <!-- ============ Symptom Checker ============ -->
+      <section class="view" id="view-checker" aria-labelledby="checker-h">
+        <h2 class="page-title mobile-title" id="checker-h" style="display:none">Symptom Checker</h2>
+
+        <div class="notice" style="margin-bottom:24px">
+          <svg class="i" aria-hidden="true"><use href="#i-alert"/></svg>
+          <div><strong>Educational tool.</strong> Predictions come from a statistical model trained on a synthetic dataset and are not a medical diagnosis. If you have chest pain, trouble breathing or other severe symptoms, contact emergency services.</div>
+        </div>
+
+        <div class="checker-grid">
+          <div class="card">
+            <div class="card-head">
+              <div>
+                <h3 class="card-title">Choose symptoms</h3>
+                <p class="card-desc">Pick everything you're experiencing. More symptoms give a more reliable prediction.</p>
+              </div>
+              <span class="badge num" id="symptom-total">— symptoms</span>
+            </div>
+            <div class="card-body">
+              <div class="picker-tools">
+                <div class="input-wrap">
+                  <svg class="i i-sm lead" aria-hidden="true"><use href="#i-search"/></svg>
+                  <label for="symptom-search" class="visually-hidden">Search symptoms</label>
+                  <input id="symptom-search" class="input has-lead" type="search" placeholder="Search symptoms, e.g. headache" autocomplete="off" />
+                </div>
+              </div>
+              <div class="chip-grid" id="chip-grid" role="group" aria-label="Symptoms">
+                <div class="skeleton" style="height:36px;width:120px"></div>
+                <div class="skeleton" style="height:36px;width:90px"></div>
+                <div class="skeleton" style="height:36px;width:140px"></div>
+                <div class="skeleton" style="height:36px;width:100px"></div>
+                <div class="skeleton" style="height:36px;width:130px"></div>
+              </div>
+            </div>
+          </div>
+
+          <aside class="card summary" aria-labelledby="summary-h">
+            <div class="card-head">
+              <div>
+                <h3 class="card-title" id="summary-h">Selected</h3>
+                <p class="card-desc"><span class="num" id="selected-count">0</span> of at least 2 required</p>
+              </div>
+              <button class="btn btn-ghost" id="clear-btn" type="button" disabled>Clear</button>
+            </div>
+            <div class="card-body">
+              <div class="selected-list" id="selected-list" aria-live="polite">
+                <p class="helper" id="selected-empty" style="text-align:left">No symptoms selected yet.</p>
+              </div>
+              <div class="summary-foot">
+                <button class="btn btn-primary btn-block" id="analyze-btn" type="button" disabled>
+                  <svg class="i i-sm" aria-hidden="true"><use href="#i-sparkle"/></svg>
+                  <span>Analyze symptoms</span>
+                </button>
+                <p class="helper" id="analyze-hint">Select at least 2 symptoms to continue.</p>
+              </div>
+            </div>
+          </aside>
+        </div>
+
+        <div class="results" id="results" aria-live="polite"></div>
+      </section>
+
+      <!-- ============ Assistant ============ -->
+      <section class="view" id="view-assistant" aria-labelledby="assistant-h">
+        <h2 class="page-title mobile-title" id="assistant-h" style="display:none">AI Assistant</h2>
+        <div class="card chat">
+          <div class="chat-scroll" id="chat-scroll" aria-live="polite">
+            <div class="msg bot">
+              <div class="avatar bot"><svg class="i" aria-hidden="true"><use href="#i-bot"/></svg></div>
+              <div class="bubble">
+                <p>Hello. Describe how you're feeling in your own words — for example <em>"fever and cough for two days"</em> — and I'll explain likely causes, warning signs and self-care advice for each symptom I recognise.</p>
+                <div class="bubble-actions">
+                  <button class="suggest" type="button" data-prompt="I have a fever and a cough">Fever and cough</button>
+                  <button class="suggest" type="button" data-prompt="Headache and nausea since this morning">Headache and nausea</button>
+                  <button class="suggest" type="button" data-prompt="Sore throat with runny nose">Sore throat, runny nose</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <form class="composer" id="composer">
+            <div class="composer-box">
+              <label for="composer-input" class="visually-hidden">Describe your symptoms</label>
+              <textarea id="composer-input" rows="1" maxlength="500" placeholder="Describe your symptoms…"></textarea>
+              <button class="btn btn-primary" id="send-btn" type="submit" aria-label="Send message">
+                <svg class="i i-sm" aria-hidden="true"><use href="#i-send"/></svg>
+              </button>
+            </div>
+            <p class="composer-hint">Press Enter to send, Shift + Enter for a new line.</p>
+          </form>
+        </div>
+      </section>
+
+      <!-- ============ Vitals ============ -->
+      <section class="view" id="view-vitals" aria-labelledby="vitals-h">
+        <h2 class="page-title mobile-title" id="vitals-h" style="display:none">Vitals Check</h2>
+        <div class="vitals-grid">
+          <form class="card" id="vitals-form" novalidate>
+            <div class="card-head">
+              <div>
+                <h3 class="card-title">Enter vital signs</h3>
+                <p class="card-desc">A rule-based screen that flags patterns linked to flu, pneumonia, hypertension and diabetes.</p>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="form-grid">
+                <div class="field">
+                  <label for="v-age">Age <span aria-hidden="true">*</span></label>
+                  <div class="input-wrap"><input class="input has-unit num" id="v-age" name="age" type="number" inputmode="numeric" min="1" max="120" required value="30" aria-describedby="v-age-err"><span class="unit">years</span></div>
+                  <span class="error" id="v-age-err">Enter an age between 1 and 120.</span>
+                </div>
+                <div class="field">
+                  <label for="v-temp">Body temperature <span aria-hidden="true">*</span></label>
+                  <div class="input-wrap"><input class="input has-unit num" id="v-temp" name="temperature" type="number" inputmode="decimal" step="0.1" min="30" max="45" required value="36.8" aria-describedby="v-temp-hint v-temp-err"><span class="unit">°C</span></div>
+                  <span class="hint" id="v-temp-hint">Normal: 36.1 – 37.2 °C</span>
+                  <span class="error" id="v-temp-err">Enter a temperature between 30 and 45 °C.</span>
+                </div>
+                <div class="field">
+                  <label for="v-hr">Heart rate <span aria-hidden="true">*</span></label>
+                  <div class="input-wrap"><input class="input has-unit num" id="v-hr" name="heart_rate" type="number" inputmode="numeric" min="30" max="220" required value="72" aria-describedby="v-hr-hint v-hr-err"><span class="unit">bpm</span></div>
+                  <span class="hint" id="v-hr-hint">Normal resting: 60 – 100 bpm</span>
+                  <span class="error" id="v-hr-err">Enter a heart rate between 30 and 220 bpm.</span>
+                </div>
+                <div class="field">
+                  <label for="v-bp">Systolic blood pressure <span aria-hidden="true">*</span></label>
+                  <div class="input-wrap"><input class="input has-unit num" id="v-bp" name="blood_pressure" type="number" inputmode="numeric" min="60" max="250" required value="118" aria-describedby="v-bp-hint v-bp-err"><span class="unit">mmHg</span></div>
+                  <span class="hint" id="v-bp-hint">The top number. Normal: 90 – 120 mmHg</span>
+                  <span class="error" id="v-bp-err">Enter a value between 60 and 250 mmHg.</span>
+                </div>
+                <div class="field">
+                  <label for="v-o2">Oxygen saturation (SpO₂) <span aria-hidden="true">*</span></label>
+                  <div class="input-wrap"><input class="input has-unit num" id="v-o2" name="oxygen_level" type="number" inputmode="numeric" min="50" max="100" required value="98" aria-describedby="v-o2-hint v-o2-err"><span class="unit">%</span></div>
+                  <span class="hint" id="v-o2-hint">Normal: 95 – 100 %</span>
+                  <span class="error" id="v-o2-err">Enter a value between 50 and 100 %.</span>
+                </div>
+                <div class="field">
+                  <label for="v-pain">Pain level</label>
+                  <div class="range-row">
+                    <input id="v-pain" name="pain_level" type="range" min="0" max="10" step="1" value="0" aria-describedby="v-pain-hint">
+                    <output class="range-out num" for="v-pain" id="v-pain-out">0</output>
+                  </div>
+                  <span class="hint" id="v-pain-hint">0 = no pain, 10 = worst imaginable</span>
+                </div>
+              </div>
+              <div class="form-actions">
+                <button class="btn btn-primary" type="submit" id="vitals-submit">
+                  <svg class="i i-sm" aria-hidden="true"><use href="#i-sparkle"/></svg><span>Run vitals check</span>
+                </button>
+                <button class="btn btn-secondary" type="reset">
+                  <svg class="i i-sm" aria-hidden="true"><use href="#i-refresh"/></svg>Reset
+                </button>
+              </div>
+            </div>
+          </form>
+
+          <div id="vitals-result" aria-live="polite">
+            <div class="card">
+              <div class="card-body empty">
+                <svg class="i" aria-hidden="true"><use href="#i-heart"/></svg>
+                <p>Your screening result will appear here.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ About ============ -->
+      <section class="view" id="view-about" aria-labelledby="about-h">
+        <div class="card about-hero">
+          <span class="eyebrow">B.Tech Information Technology · Mini Project · 2025</span>
+          <h2 id="about-h">Human Disease Prediction using Machine Learning</h2>
+          <p>MedPredict turns a list of symptoms into a ranked set of likely conditions. A supervised classifier learns how symptoms co-occur across thousands of labelled cases, then estimates the probability of each disease for new input — with results explained in plain language alongside causes, red-flag warnings and self-care advice.</p>
+        </div>
+
+        <div class="stats">
+          <div class="card stat"><div class="stat-val num" id="stat-symptoms">73</div><div class="stat-label">Symptoms covered</div></div>
+          <div class="card stat"><div class="stat-val num" id="stat-diseases">21</div><div class="stat-label">Disease categories</div></div>
+          <div class="card stat"><div class="stat-val num">42,000</div><div class="stat-label">Training records</div></div>
+          <div class="card stat"><div class="stat-val num">80 / 20</div><div class="stat-label">Train / test split</div></div>
+        </div>
+
+        <h3 class="section-title">How it works</h3>
+        <ol class="pipeline" style="list-style:none;padding:0;margin:0">
+          <li class="card step"><div class="step-num">1</div><h4>Data collection</h4><p>A symptom–disease dataset is assembled and stored as CSV.</p></li>
+          <li class="card step"><div class="step-num">2</div><h4>Pre-processing</h4><p>Duplicates and missing values are removed and the data is balanced.</p></li>
+          <li class="card step"><div class="step-num">3</div><h4>Feature extraction</h4><p>Each case becomes a binary vector: one column per symptom.</p></li>
+          <li class="card step"><div class="step-num">4</div><h4>Model training</h4><p>A scikit-learn classifier is fit and evaluated on held-out data.</p></li>
+          <li class="card step"><div class="step-num">5</div><h4>Prediction API</h4><p>Flask endpoints return the top disease with class probabilities.</p></li>
+        </ol>
+
+        <h3 class="section-title">Technical details</h3>
+        <div class="two-col">
+          <div class="card card-body">
+            <h4 class="card-title" style="margin-bottom:16px">Model</h4>
+            <dl class="def-list">
+              <dt>Algorithm</dt><dd>Logistic Regression (multi-class)</dd>
+              <dt>Input</dt><dd>Binary symptom vector</dd>
+              <dt>Output</dt><dd>Probability for each disease</dd>
+              <dt>Evaluation</dt><dd>Accuracy, precision, recall, F1</dd>
+              <dt>Vitals screen</dt><dd>Rule-based thresholds</dd>
+            </dl>
+          </div>
+          <div class="card card-body">
+            <h4 class="card-title" style="margin-bottom:16px">Stack</h4>
+            <dl class="def-list">
+              <dt>Language</dt><dd>Python 3</dd>
+              <dt>ML</dt><dd>scikit-learn, NumPy, Pandas</dd>
+              <dt>Server</dt><dd>Flask REST API</dd>
+              <dt>Interface</dt><dd>HTML, CSS, vanilla JavaScript</dd>
+              <dt>Endpoints</dt><dd><code>/predict_by_symptoms_ml</code>, <code>/chat</code>, <code>/predict</code></dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="notice notice-danger" style="margin-top:24px">
+          <svg class="i" aria-hidden="true"><use href="#i-alert"/></svg>
+          <div><strong>Limitations.</strong> The training data is synthetic and the model cannot examine you, order tests or take your history into account. Always consult a qualified clinician for diagnosis and treatment.</div>
+        </div>
+      </section>
+
+      <p class="footer-note">MedPredict is a student research project and does not provide medical advice. In an emergency, contact local emergency services.</p>
+    </main>
+  </div>
+</div>
+
+<!-- Bottom nav (mobile) -->
+<nav class="bottom-nav" aria-label="Main navigation">
+  <a href="#checker" data-view="checker"><svg class="i" aria-hidden="true"><use href="#i-stethoscope"/></svg>Checker</a>
+  <a href="#assistant" data-view="assistant"><svg class="i" aria-hidden="true"><use href="#i-chat"/></svg>Assistant</a>
+  <a href="#vitals" data-view="vitals"><svg class="i" aria-hidden="true"><use href="#i-heart"/></svg>Vitals</a>
+  <a href="#about" data-view="about"><svg class="i" aria-hidden="true"><use href="#i-info"/></svg>About</a>
+</nav>
+
+<script src="js/config.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

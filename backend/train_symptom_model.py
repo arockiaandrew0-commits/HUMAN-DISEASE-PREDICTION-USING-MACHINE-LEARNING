@@ -185,6 +185,8 @@ def train_symptom_model(df: pd.DataFrame):
 
 
 if __name__ == '__main__':
+    # Read/write data/ and model/ next to this script regardless of where it is run from
+    os.chdir(os.path.dirname(os.path.abspath(__file__)))
     # Prefer the augmented pro dataset if available, otherwise generate synthetic
     pro_path = os.path.join('data', 'symptom_dataset_pro.csv')
     base_path = os.path.join('data', 'symptom_dataset.csv')

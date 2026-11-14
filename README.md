@@ -49,7 +49,7 @@ A machine learning-powered web application that predicts diseases based on sympt
 
 3. **Install dependencies**
    ```bash
-   pip install -r requirements.txt
+   pip install -r backend/requirements.txt
    ```
 
 4. **Configure environment**
@@ -60,29 +60,42 @@ A machine learning-powered web application that predicts diseases based on sympt
 
 5. **(Optional) Retrain the model**
 
-   Trained model artifacts already ship in `model/`, so this step isn't required to run the app.
+   Trained model artifacts already ship in `backend/model/`, so this step isn't required to run the app.
    ```bash
-   python train_symptom_model.py
+   python backend/train_symptom_model.py
    ```
 
-6. **Run the app**
+6. **Run the app** — the project has two parts that run side by side:
+
+   | Part | What it is | Address |
+   |------|-----------|---------|
+   | **Backend** (`backend/`) | Flask REST API + ML model | `http://localhost:5000` |
+   | **Frontend** (`frontend/`) | HTML / CSS / JavaScript UI | `http://localhost:8000` |
+
+   **Windows, one click:** double-click `run.bat` — it starts both and opens the browser.
+
+   **Or start each in its own terminal:**
    ```bash
-   python app.py
+   python backend/app.py
+   ```
+   ```bash
+   python -m http.server 8000 --directory frontend
    ```
 
-7. **Access the application**
-   - Web app: `http://127.0.0.1:5000` (`/chat_ui` redirects here)
+7. **Open the application** at `http://localhost:8000`.
+   The frontend calls the backend at the address in `frontend/js/config.js` (`API_BASE_URL`); change it if you host the API elsewhere.
+   Opening `http://localhost:5000` directly shows the API's endpoint list.
 
 ## 📊 Dataset Information
 
 ### Symptom Coverage
-The `/symptoms` endpoint exposes 75 symptoms spanning respiratory, digestive, neurological, mental health, skin, and urinary categories (see `symptom_causes` in [app.py](app.py)). The ML training pipeline uses its own 73-symptom binary feature set (see `SYMPTOMS` in [train_symptom_model.py](train_symptom_model.py)).
+The `/symptoms` endpoint exposes 75 symptoms spanning respiratory, digestive, neurological, mental health, skin, and urinary categories (see `symptom_causes` in [backend/app.py](backend/app.py)). The ML training pipeline uses its own 73-symptom binary feature set (see `SYMPTOMS` in [backend/train_symptom_model.py](backend/train_symptom_model.py)).
 
 ### Disease Categories (21 conditions)
 Common Cold, Influenza, COVID-19, Pneumonia, Bronchitis, Asthma, Allergy, Sinusitis, Migraine, Gastroenteritis, Food Poisoning, Irritable Bowel Syndrome, Hypertension, Diabetes, Urinary Tract Infection, Dermatitis, Anemia, Anxiety Disorder, Depressive Disorder, Arthritis, Healthy.
 
 ### Dataset Statistics
-- **Total Samples**: 42,000 rows (`data/symptom_dataset_pro.csv`, 2,000 per disease class)
+- **Total Samples**: 42,000 rows (`backend/data/symptom_dataset_pro.csv`, 2,000 per disease class)
 - **Features**: 73 binary symptom indicators
 - **Validation Accuracy**: ~79% (Logistic Regression, 80/20 stratified split)
 - **Strongest classes**: Influenza (F1 0.96), COVID-19 (F1 0.89), Common Cold (F1 0.88)
@@ -182,29 +195,28 @@ GET /symptom_info?symptom=fever
 3. **Evaluation**: Accuracy and per-class classification report printed to console
 4. **Serialization**: Model, symptom index, and disease labels saved to `model/symptom_ml_artifacts.pkl`
 
-Run `python train_symptom_model.py` to retrain — it overwrites `model/symptom_ml_artifacts.pkl`, `model/symptoms_list.json`, and `model/diseases_list.json` using the script's own symptom vocabulary, which differs from the one used elsewhere in the app.
+Run `python backend/train_symptom_model.py` to retrain — it overwrites `model/symptom_ml_artifacts.pkl`, `model/symptoms_list.json`, and `model/diseases_list.json` using the script's own symptom vocabulary, which differs from the one used elsewhere in the app.
 
 ## 📁 Project Structure
 
 ```
 mlproject/
-├── 📄 app.py                    # Main Flask application
-├── 📄 train_symptom_model.py    # ML model training script
-├── 📄 requirements.txt          # Python dependencies
-├── 📄 logging.conf              # Logging configuration
-├── 📄 README.md                 # Project documentation
-├── 📁 data/
-│   ├── symptom_dataset.csv          # Base synthetic dataset
-│   ├── symptom_dataset_pro.csv      # Augmented dataset (used by default)
-│   └── symptom_dataset_updated.csv
-├── 📁 model/
-│   ├── symptom_ml_artifacts.pkl # Trained model + preprocessing artifacts
-│   ├── symptoms_list.json       # Symptom vocabulary
-│   └── diseases_list.json       # Disease categories
-├── 📁 static/                   # Assets served by Flask
-├── 📁 templates/
-│   └── index.html               # Single-page chat assistant UI
-└── 📁 logs/                     # Rotating log files (created at runtime)
+├── 📁 backend/                  # Flask REST API (Python)
+│   ├── app.py                   # API routes, prediction logic, CORS
+│   ├── train_symptom_model.py   # ML model training script
+│   ├── requirements.txt         # Python dependencies
+│   ├── logging.conf             # Logging configuration
+│   ├── 📁 data/                 # Symptom–disease datasets (CSV)
+│   ├── 📁 model/                # Trained model + symptom/disease lists
+│   └── 📁 logs/                 # Log files (created at runtime)
+├── 📁 frontend/                 # Static web UI (no build step)
+│   ├── index.html               # Page markup: checker, assistant, vitals, about
+│   ├── 📁 css/styles.css        # Design tokens, layout, light/dark themes
+│   └── 📁 js/
+│       ├── config.js            # Backend API URL
+│       └── app.js               # Routing, API calls, rendering
+├── 📄 run.bat                   # Starts backend + frontend on Windows
+└── 📄 README.md
 ```
 
 ## 🔒 Security & Privacy
@@ -219,16 +231,16 @@ mlproject/
 ## 📦 Deployment
 
 ### Environment Variables
-Copy `.env.example` to `.env`. Variables the app actually reads: `HOST`, `PORT`, `DEBUG`, `LOG_LEVEL`, `LOG_FILE_PATH`, `ERROR_LOG_FILE_PATH`. The example file also documents additional variables (database, Redis, cloud storage, etc.) for optional future integrations — none are required to run the app today.
+Copy `.env.example` to `.env`. Variables the app actually reads: `CORS_ORIGINS` (comma-separated allowed frontend origins, default `*`), `HOST`, `PORT`, `DEBUG`, `LOG_LEVEL`, `LOG_FILE_PATH`, `ERROR_LOG_FILE_PATH`. The example file also documents additional variables (database, Redis, cloud storage, etc.) for optional future integrations — none are required to run the app today.
 
 ### Production Setup (Gunicorn + Nginx)
 ```bash
-gunicorn -w 4 -b 0.0.0.0:5000 app:app
+gunicorn -w 4 -b 0.0.0.0:5000 --chdir backend app:app
 ```
-Put Nginx in front for HTTPS/reverse proxy, and run under a process manager (systemd, supervisord) for auto-restart.
+Serve `frontend/` as static files from Nginx (or any static host) and proxy the API, setting `API_BASE_URL` in `frontend/js/config.js` and `CORS_ORIGINS` on the backend to match. Use Nginx for HTTPS, and run under a process manager (systemd, supervisord) for auto-restart.
 
 ### Observability
-- Logs: `logs/` directory (`app.log`, `error.log`, `ml.log`, `api.log`, `security.log`, `flask.log`)
+- Logs: `backend/logs/` directory (`app.log`, `error.log`, `ml.log`, `api.log`, `security.log`, `flask.log`)
 - Health: `GET /health` returns status and uptime
 - Metrics: `GET /metrics` exposes basic request counters
 

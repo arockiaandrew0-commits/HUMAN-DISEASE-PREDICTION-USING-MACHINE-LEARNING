@@ -1,7 +1,7 @@
 import os
 import pickle
 import numpy as np
-from flask import Flask, render_template, request, jsonify, redirect, url_for
+from flask import Flask, request, jsonify
 import pandas as pd
 
 import logging
@@ -11,6 +11,11 @@ import uuid
 from collections import defaultdict
 from flask_cors import CORS
 
+# data/, model/ and logs/ are resolved relative to this file, so the API can be
+# started from any working directory (e.g. `python backend/app.py`).
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# Backend is a JSON API only; the UI lives in ../frontend and calls it over HTTP.
 app = Flask(__name__)
 
 # Initialize tracking variables for metrics
@@ -312,11 +317,20 @@ symptom_model = SymptomBasedDiseaseModel()
 
 @app.route('/')
 def home():
-    return render_template('index.html')
-
-@app.route('/chat_ui', methods=['GET'])
-def chat_ui():
-    return redirect(url_for('home'))
+    """API index: lists available endpoints. The UI is served from ../frontend."""
+    return jsonify({
+        'name': 'MedPredict Disease Prediction API',
+        'status': 'ok',
+        'endpoints': {
+            'GET /health': 'Service and model status',
+            'GET /symptoms': 'List of supported symptoms',
+            'GET /symptom_info?symptom=<name>': 'Causes, prevalence, red flags and advice for a symptom',
+            'POST /predict_by_symptoms_ml': 'ML prediction from {"symptoms": [...]}',
+            'POST /predict': 'Rule-based vitals screen',
+            'POST /chat': 'Free-text symptom assistant',
+            'GET /metrics': 'Request counters and latencies',
+        },
+    })
 
 @app.route('/predict', methods=['POST'])
 def predict():
@@ -354,8 +368,8 @@ SYMPTOM_DF = None
 SYMPTOM_STATS_CACHE = {}
 
 def _get_dataset_path():
-    pro = os.path.join('data', 'symptom_dataset_pro.csv')
-    base = os.path.join('data', 'symptom_dataset.csv')
+    pro = os.path.join(BASE_DIR, 'data', 'symptom_dataset_pro.csv')
+    base = os.path.join(BASE_DIR, 'data', 'symptom_dataset.csv')
     if os.path.exists(pro):
         return pro
     if os.path.exists(base):
@@ -701,7 +715,7 @@ def load_ml_artifacts():
         return
     try:
         import pickle, os
-        with open(os.path.join('model','symptom_ml_artifacts.pkl'),'rb') as f:
+        with open(os.path.join(BASE_DIR, 'model','symptom_ml_artifacts.pkl'),'rb') as f:
             artifacts = pickle.load(f)
         ML_MODEL = artifacts.get('model')
         ML_SYMPTOM_INDEX = artifacts.get('symptom_index', [])
@@ -749,7 +763,7 @@ def predict_by_symptoms_ml():
 def get_symptoms():
     try:
         import json, os
-        path = os.path.join('model','symptoms_list.json')
+        path = os.path.join(BASE_DIR, 'model','symptoms_list.json')
         names = []
         if os.path.exists(path):
             with open(path, 'r') as f:
@@ -763,12 +777,15 @@ def get_symptoms():
         return jsonify({'error': str(e), 'symptoms': []}), 500
 
 # Initialize logging from logging.conf if available
-os.makedirs('logs', exist_ok=True)
+os.makedirs(os.path.join(BASE_DIR, 'logs'), exist_ok=True)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(name)s %(message)s')
 logger = logging.getLogger('app')
 
 # Enable CORS for API endpoints
-CORS(app, resources={r"/predict*": {"origins": "*"}, r"/symptoms": {"origins": "*"}, r"/symptom_info": {"origins": "*"}, r"/chat": {"origins": "*"}, r"/symptom_catalog": {"origins": "*"}})
+# Enable CORS so the separately served frontend can call every endpoint.
+# Restrict in production with e.g. CORS_ORIGINS="https://your-frontend.example".
+_cors_origins = os.getenv('CORS_ORIGINS', '*')
+CORS(app, resources={r"/*": {"origins": [o.strip() for o in _cors_origins.split(',')] if _cors_origins != '*' else '*'}})
 
 @app.route('/health', methods=['GET'])
 def health():
@@ -826,7 +843,7 @@ def chat():
         names = []
         try:
             import json, os
-            path = os.path.join('model','symptoms_list.json')
+            path = os.path.join(BASE_DIR, 'model','symptoms_list.json')
             if os.path.exists(path):
                 with open(path, 'r') as f:
                     names = json.load(f)
@@ -916,7 +933,7 @@ def symptom_catalog():
         # Build full catalog with stats
         import json, os
         names = []
-        path = os.path.join('model','symptoms_list.json')
+        path = os.path.join(BASE_DIR, 'model','symptoms_list.json')
         if os.path.exists(path):
             with open(path, 'r') as f:
                 names = json.load(f)
@@ -945,8 +962,6 @@ def symptom_catalog():
         return jsonify({'error': str(e), 'catalog': []}), 500
 
 if __name__ == '__main__':
-    # Ensure templates directory exists
-    os.makedirs('templates', exist_ok=True)
     # Run with env-based configuration
     port = int(os.getenv('PORT', '5000'))
     env = os.getenv('FLASK_ENV', 'development')
