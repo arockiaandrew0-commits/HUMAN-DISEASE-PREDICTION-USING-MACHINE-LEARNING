@@ -1,7 +1,7 @@
 import os
 import pickle
 import numpy as np
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory, abort
 import pandas as pd
 
 import logging
@@ -14,9 +14,11 @@ from flask_cors import CORS
 # data/, model/ and logs/ are resolved relative to this file, so the API can be
 # started from any working directory (e.g. `python backend/app.py`).
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# The UI lives in ../frontend. It can be hosted separately, but the backend also
+# serves it so a single `python backend/app.py` gives a working app on one URL.
+FRONTEND_DIR = os.path.abspath(os.path.join(BASE_DIR, '..', 'frontend'))
 
-# Backend is a JSON API only; the UI lives in ../frontend and calls it over HTTP.
-app = Flask(__name__)
+app = Flask(__name__, static_folder=None)
 
 # Initialize tracking variables for metrics
 START_TIME = time.time()
@@ -317,7 +319,19 @@ symptom_model = SymptomBasedDiseaseModel()
 
 @app.route('/')
 def home():
-    """API index: lists available endpoints. The UI is served from ../frontend."""
+    """Serve the web UI from ../frontend."""
+    return send_from_directory(FRONTEND_DIR, 'index.html')
+
+@app.route('/<path:filename>')
+def frontend_asset(filename):
+    """Serve frontend files (css/, js/). API routes take precedence over this."""
+    if not os.path.isfile(os.path.join(FRONTEND_DIR, filename)):
+        abort(404)
+    return send_from_directory(FRONTEND_DIR, filename)
+
+@app.route('/api')
+def api_index():
+    """API index: lists available endpoints."""
     return jsonify({
         'name': 'MedPredict Disease Prediction API',
         'status': 'ok',

@@ -3,7 +3,10 @@
 
   /* ---------- Helpers ---------- */
   // Backend base URL comes from js/config.js (falls back to the local Flask API).
-  const API = String((window.MEDPREDICT_CONFIG && window.MEDPREDICT_CONFIG.API_BASE_URL) || 'http://localhost:5000').replace(/\/+$/, '');
+  // '' means "same server that served this page".
+  const cfg = window.MEDPREDICT_CONFIG || {};
+  const API = String(cfg.API_BASE_URL != null ? cfg.API_BASE_URL : 'http://localhost:5000').replace(/\/+$/, '');
+  const API_LABEL = API || location.origin;
   const $ = (sel, root = document) => root.querySelector(sel);
   const esc = (s) => { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; };
   const pretty = (s) => String(s || '').replace(/_/g, ' ');
@@ -139,7 +142,7 @@
     $('#stat-symptoms').textContent = allSymptoms.length;
     renderChips();
   }).catch(() => {
-    chipGrid.innerHTML = `<div class="notice notice-danger" style="width:100%">${icon('i-alert', 'i')}<div>Could not reach the backend at <code>${esc(API)}</code>. Start it with <code>python backend/app.py</code> (or run <code>run.bat</code>), then reload this page.</div></div>`;
+    chipGrid.innerHTML = `<div class="notice notice-danger" style="width:100%">${icon('i-alert', 'i')}<div>Could not reach the backend at <code>${esc(API_LABEL)}</code>. Double-click <code>run.bat</code> in the project folder (or run <code>.venv\\Scripts\\python.exe backend\\app.py</code>), then open <code>http://localhost:5000</code>.</div></div>`;
   });
   renderSelected();
 
@@ -274,7 +277,7 @@
       botReply(data);
     } catch (err) {
       typing.remove();
-      addMsg('bot', `<div class="notice notice-danger" role="alert">${icon('i-alert', 'i')}<div>Couldn't reach the backend at <code>${esc(API)}</code>. Make sure it is running, then try again.</div></div>`);
+      addMsg('bot', `<div class="notice notice-danger" role="alert">${icon('i-alert', 'i')}<div>Couldn't reach the backend at <code>${esc(API_LABEL)}</code>. Make sure it is running, then try again.</div></div>`);
     } finally {
       sendBtn.disabled = false;
       input.focus();

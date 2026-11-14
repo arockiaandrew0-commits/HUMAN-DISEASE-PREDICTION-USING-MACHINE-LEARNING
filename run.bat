@@ -1,17 +1,33 @@
 @echo off
-REM Starts the backend API (port 5000) and the frontend (port 8000), then opens the app.
+REM Starts MedPredict: the Flask backend serves both the API and the website
+REM on http://localhost:5000. Always uses the project's .venv so the right
+REM packages (Flask, scikit-learn, pandas) are available.
 cd /d "%~dp0"
 
-set PY=python
-if exist ".venv\Scripts\python.exe" set PY=.venv\Scripts\python.exe
+set VENV_PY=.venv\Scripts\python.exe
 
-echo Starting backend API on http://localhost:5000 ...
-start "MedPredict Backend" cmd /k "%PY% backend\app.py"
+if not exist "%VENV_PY%" (
+    echo Creating virtual environment in .venv ...
+    python -m venv .venv || goto :fail
+)
 
-echo Starting frontend on http://localhost:8000 ...
-start "MedPredict Frontend" cmd /k "%PY% -m http.server 8000 --directory frontend"
+"%VENV_PY%" -c "import flask, flask_cors, sklearn, pandas, numpy" 2>nul
+if errorlevel 1 (
+    echo Installing dependencies from backend\requirements.txt ...
+    "%VENV_PY%" -m pip install -r backend\requirements.txt || goto :fail
+)
 
-timeout /t 3 /nobreak >nul
-start "" http://localhost:8000
 echo.
-echo Both servers are running in their own windows. Close those windows to stop them.
+echo Starting MedPredict on http://localhost:5000
+echo Keep this window open while you use the app. Press Ctrl+C to stop.
+echo.
+start "" cmd /c "timeout /t 3 /nobreak >nul && start http://localhost:5000"
+"%VENV_PY%" backend\app.py
+pause
+exit /b 0
+
+:fail
+echo.
+echo Setup failed. See the messages above.
+pause
+exit /b 1

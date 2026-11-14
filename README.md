@@ -65,26 +65,23 @@ A machine learning-powered web application that predicts diseases based on sympt
    python backend/train_symptom_model.py
    ```
 
-6. **Run the app** — the project has two parts that run side by side:
+6. **Run the app**
 
-   | Part | What it is | Address |
-   |------|-----------|---------|
-   | **Backend** (`backend/`) | Flask REST API + ML model | `http://localhost:5000` |
-   | **Frontend** (`frontend/`) | HTML / CSS / JavaScript UI | `http://localhost:8000` |
+   **Windows, one click:** double-click `run.bat`. It uses the project's `.venv` (creating it and installing packages if needed), starts the backend and opens `http://localhost:5000`. Keep its window open while you use the app.
 
-   **Windows, one click:** double-click `run.bat` — it starts both and opens the browser.
-
-   **Or start each in its own terminal:**
+   **Or from a terminal** — use the virtual-environment Python, not the system `python`, which may not have Flask installed:
    ```bash
-   python backend/app.py
+   .venv\Scripts\python.exe backend\app.py
    ```
-   ```bash
-   python -m http.server 8000 --directory frontend
-   ```
+   (macOS/Linux: `.venv/bin/python backend/app.py`)
 
-7. **Open the application** at `http://localhost:8000`.
-   The frontend calls the backend at the address in `frontend/js/config.js` (`API_BASE_URL`); change it if you host the API elsewhere.
-   Opening `http://localhost:5000` directly shows the API's endpoint list.
+7. **Open the application** at `http://localhost:5000`.
+
+   The backend serves both the website (from `frontend/`) and the JSON API, so one command is enough. `GET /api` lists the endpoints.
+
+   **Hosting the frontend separately** (optional): serve `frontend/` from any static server, e.g. `python -m http.server 8000 --directory frontend`, and keep the backend running on port 5000. Set `API_BASE_URL` in `frontend/js/config.js` if the backend lives elsewhere, and `CORS_ORIGINS` on the backend to match.
+
+   **If no symptoms appear or answers never arrive**, the backend isn't running. Start it as above and reload the page.
 
 ## 📊 Dataset Information
 
@@ -202,7 +199,7 @@ Run `python backend/train_symptom_model.py` to retrain — it overwrites `model/
 ```
 mlproject/
 ├── 📁 backend/                  # Flask REST API (Python)
-│   ├── app.py                   # API routes, prediction logic, CORS
+│   ├── app.py                   # API routes, prediction logic, serves frontend/
 │   ├── train_symptom_model.py   # ML model training script
 │   ├── requirements.txt         # Python dependencies
 │   ├── logging.conf             # Logging configuration
@@ -215,7 +212,7 @@ mlproject/
 │   └── 📁 js/
 │       ├── config.js            # Backend API URL
 │       └── app.js               # Routing, API calls, rendering
-├── 📄 run.bat                   # Starts backend + frontend on Windows
+├── 📄 run.bat                   # Sets up .venv and starts the app on Windows
 └── 📄 README.md
 ```
 
