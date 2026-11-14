@@ -73,6 +73,7 @@
     if (h.diseases_count) {
       $('#status-meta').textContent = `Logistic Regression · ${h.diseases_count} conditions`;
       $('#stat-diseases').textContent = h.diseases_count;
+      $('#hero-diseases').textContent = h.diseases_count;
     }
   }).catch(() => {
     $('#status-dot').className = 'status-dot err';
@@ -140,6 +141,7 @@
     allSymptoms = (d.symptoms || []).slice().sort((a, b) => pretty(a).localeCompare(pretty(b)));
     $('#symptom-total').textContent = `${allSymptoms.length} symptoms`;
     $('#stat-symptoms').textContent = allSymptoms.length;
+    $('#hero-symptoms').textContent = allSymptoms.length;
     renderChips();
   }).catch(() => {
     chipGrid.innerHTML = `<div class="notice notice-danger" style="width:100%">${icon('i-alert', 'i')}<div>Could not reach the backend at <code>${esc(API_LABEL)}</code>. Double-click <code>run.bat</code> in the project folder (or run <code>.venv\\Scripts\\python.exe backend\\app.py</code>), then open <code>http://localhost:5000</code>.</div></div>`;

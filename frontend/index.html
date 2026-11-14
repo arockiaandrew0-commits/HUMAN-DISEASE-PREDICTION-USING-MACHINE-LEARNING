@@ -96,11 +96,17 @@
 
       <!-- ============ Symptom Checker ============ -->
       <section class="view" id="view-checker" aria-labelledby="checker-h">
-        <h2 class="page-title mobile-title" id="checker-h" style="display:none">Symptom Checker</h2>
-
-        <div class="notice" style="margin-bottom:24px">
-          <svg class="i" aria-hidden="true"><use href="#i-alert"/></svg>
-          <div><strong>Educational tool.</strong> Predictions come from a statistical model trained on a synthetic dataset and are not a medical diagnosis. If you have chest pain, trouble breathing or other severe symptoms, contact emergency services.</div>
+        <div class="hero">
+          <div class="hero-copy">
+            <span class="hero-eyebrow"><svg class="i i-sm" aria-hidden="true"><use href="#i-sparkle"/></svg>Machine-learning symptom analysis</span>
+            <h2 class="hero-title" id="checker-h">How are you feeling today?</h2>
+            <p class="hero-text">Select your symptoms and get an instant, ranked assessment of likely conditions, with clear guidance for each symptom.</p>
+          </div>
+          <dl class="hero-stats">
+            <div><dt>Symptoms</dt><dd class="num" id="hero-symptoms">73</dd></div>
+            <div><dt>Conditions</dt><dd class="num" id="hero-diseases">21</dd></div>
+            <div><dt>Records</dt><dd class="num">42K</dd></div>
+          </dl>
         </div>
 
         <div class="checker-grid">
