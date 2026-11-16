@@ -188,6 +188,8 @@
 
       const probs = Object.entries(pred.probabilities || {}).sort((a, b) => b[1] - a[1]).filter(([n]) => n !== pred.disease).slice(0, 5);
       const conf = Number(pred.confidence) || 0;
+      const used = Array.isArray(pred.symptoms_used) ? pred.symptoms_used.length : syms.length;
+      const notInModel = Array.isArray(pred.symptoms_not_in_model) ? pred.symptoms_not_in_model : [];
 
       results.innerHTML = `
         <section class="card result-hero" aria-labelledby="res-h">
@@ -200,9 +202,10 @@
             </div>
             <div class="meter" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${conf}" aria-label="Model confidence"><span data-w="${Math.min(conf, 100)}"></span></div>
             <div class="result-meta">
-              <span class="badge">${icon('i-list')}${syms.length} symptoms analysed</span>
+              <span class="badge">${icon('i-list')}${used} of ${syms.length} symptoms used by the model</span>
               <span class="badge">Logistic Regression</span>
             </div>
+            ${notInModel.length ? `<p class="result-note">Not part of the prediction model: <strong>${notInModel.map(s => esc(pretty(s))).join(', ')}</strong>. Their information is still shown below.</p>` : ''}
           </div>
           <div class="result-side">
             <span class="eyebrow">Other possibilities</span>
@@ -272,7 +275,7 @@
     input.value = ''; autoResize();
     sendBtn.disabled = true;
     addMsg('user', `<p>${esc(text)}</p>`);
-    const typing = addMsg('bot', '<span class="typing" aria-label="Assistant is typing"><span></span><span></span><span></span></span>');
+    const typing = addMsg('bot', '<span class="typing" role="status" aria-label="Assistant is typing"><span></span><span></span><span></span></span>');
     try {
       const data = await postJSON('/chat', { message: text });
       typing.remove();

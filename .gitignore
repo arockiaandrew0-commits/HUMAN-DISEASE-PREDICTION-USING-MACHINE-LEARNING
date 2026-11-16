@@ -13,10 +13,11 @@ env/
 *.egg-info/
 
 # Logs
-logs/*.log
-logs/*.jsonl
+**/logs/*.log*
+**/logs/*.jsonl
 
 # OS / editor
+.claude/
 .DS_Store
 Thumbs.db
 .vscode/

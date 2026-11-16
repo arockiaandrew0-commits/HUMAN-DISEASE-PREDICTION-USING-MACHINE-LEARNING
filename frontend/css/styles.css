@@ -302,6 +302,8 @@ svg.i-sm { width: 16px; height: 16px; }
 .conf-line { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
 .conf-val { font-family: var(--font-head); font-size: 1.5rem; font-weight: 700; }
 .result-meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.result-note { margin-top: 12px; font-size: 0.8125rem; color: var(--text-muted); text-transform: none; }
+.result-note strong { font-weight: 600; color: var(--text); text-transform: capitalize; }
 
 .diff-list { display: flex; flex-direction: column; gap: 14px; margin-top: 12px; }
 .diff-row { display: grid; grid-template-columns: minmax(0, 1fr) 56px; gap: 4px 12px; align-items: center; font-size: 0.875rem; }

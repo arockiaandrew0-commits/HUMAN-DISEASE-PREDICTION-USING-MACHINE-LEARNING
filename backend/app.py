@@ -1,15 +1,16 @@
+import json
+import logging
 import os
 import pickle
-import numpy as np
-from flask import Flask, request, jsonify, send_from_directory, abort
-import pandas as pd
-
-import logging
-import logging.config
 import time
-import uuid
-from collections import defaultdict
+from collections import defaultdict, deque
+from logging.handlers import RotatingFileHandler
+
+import numpy as np
+import pandas as pd
+from flask import Flask, request, jsonify, send_from_directory, g
 from flask_cors import CORS
+from werkzeug.exceptions import HTTPException
 
 # data/, model/ and logs/ are resolved relative to this file, so the API can be
 # started from any working directory (e.g. `python backend/app.py`).
@@ -18,12 +19,87 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 # serves it so a single `python backend/app.py` gives a working app on one URL.
 FRONTEND_DIR = os.path.abspath(os.path.join(BASE_DIR, '..', 'frontend'))
 
-app = Flask(__name__, static_folder=None)
+# ---------------------------------------------------------------------------
+# Logging: console + rotating file in backend/logs/app.log
+# ---------------------------------------------------------------------------
+LOG_DIR = os.path.join(BASE_DIR, 'logs')
+os.makedirs(LOG_DIR, exist_ok=True)
+_log_format = logging.Formatter('%(asctime)s %(levelname)s %(name)s %(message)s')
+_file_handler = RotatingFileHandler(os.path.join(LOG_DIR, 'app.log'), maxBytes=5 * 1024 * 1024,
+                                    backupCount=3, encoding='utf-8')
+_file_handler.setFormatter(_log_format)
+logging.basicConfig(level=os.getenv('LOG_LEVEL', 'INFO').upper(),
+                    format='%(asctime)s %(levelname)s %(name)s %(message)s')
+logging.getLogger().addHandler(_file_handler)
+logger = logging.getLogger('app')
 
-# Initialize tracking variables for metrics
+# ---------------------------------------------------------------------------
+# App
+# ---------------------------------------------------------------------------
+app = Flask(__name__, static_folder=None)
+app.config['MAX_CONTENT_LENGTH'] = 64 * 1024  # requests are small JSON bodies
+app.json.sort_keys = False
+
+# CORS lets a separately hosted frontend call the API.
+# Restrict in production with e.g. CORS_ORIGINS="https://your-frontend.example".
+_cors_origins = os.getenv('CORS_ORIGINS', '*')
+CORS(app, resources={r"/*": {"origins": [o.strip() for o in _cors_origins.split(',')]
+                              if _cors_origins != '*' else '*'}})
+
+MAX_SYMPTOMS = 30
+MAX_MESSAGE_CHARS = 500
+
+# Request metrics (kept in memory, bounded)
 START_TIME = time.time()
 REQUEST_COUNTERS = defaultdict(int)
-ENDPOINT_LATENCIES = defaultdict(list)
+ENDPOINT_LATENCIES = defaultdict(lambda: deque(maxlen=500))
+
+CONTENT_SECURITY_POLICY = (
+    "default-src 'self'; "
+    "script-src 'self'; "
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+    "font-src 'self' https://fonts.gstatic.com; "
+    "img-src 'self' data:; "
+    "connect-src 'self'; "
+    "base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+)
+
+
+@app.before_request
+def _start_timer():
+    g.request_started = time.perf_counter()
+
+
+@app.after_request
+def _finalize_response(response):
+    started = getattr(g, 'request_started', None)
+    if started is not None:
+        endpoint = request.url_rule.rule if request.url_rule else 'unmatched'
+        REQUEST_COUNTERS['total'] += 1
+        REQUEST_COUNTERS[endpoint] += 1
+        ENDPOINT_LATENCIES[endpoint].append(time.perf_counter() - started)
+
+    response.headers.setdefault('X-Content-Type-Options', 'nosniff')
+    response.headers.setdefault('X-Frame-Options', 'DENY')
+    response.headers.setdefault('Referrer-Policy', 'strict-origin-when-cross-origin')
+    if response.mimetype == 'text/html':
+        response.headers.setdefault('Content-Security-Policy', CONTENT_SECURITY_POLICY)
+    return response
+
+
+def error_response(message, status):
+    return jsonify({'error': message}), status
+
+
+@app.errorhandler(HTTPException)
+def _handle_http_error(exc):
+    return error_response(exc.description or exc.name, exc.code)
+
+
+@app.errorhandler(Exception)
+def _handle_unexpected_error(exc):
+    logger.exception('Unhandled error on %s', request.path)
+    return error_response('Internal server error. Please try again later.', 500)
 
 # Symptom causes information - expanded to cover all symptoms
 symptom_causes = {
@@ -120,20 +196,20 @@ def normalize_symptom_name(symptom):
     if not symptom:
         return None
     symptom_lower = symptom.lower().strip()
-    
+
     # First check direct mapping for known variations
     if symptom_lower in SYMPTOM_NAME_MAP:
         return SYMPTOM_NAME_MAP[symptom_lower]
-    
+
     # Then check if it exists directly in symptom_causes
     if symptom_lower in symptom_causes:
         return symptom_lower
-    
+
     # Try variations (replace underscores with spaces and vice versa)
     # Remove 'symptom_' prefix if present
     if symptom_lower.startswith('symptom_'):
         symptom_lower = symptom_lower[8:]
-    
+
     variations = [
         symptom_lower,
         symptom_lower.replace('_', ' '),
@@ -141,11 +217,11 @@ def normalize_symptom_name(symptom):
         symptom_lower.replace('-', '_'),
         symptom_lower.replace('-', ' ')
     ]
-    
+
     for var in variations:
         if var in symptom_causes:
             return var
-    
+
     # Return the normalized version (with underscores) for consistency
     return symptom_lower.replace(' ', '_').replace('-', '_')
 
@@ -153,14 +229,14 @@ def normalize_symptom_name(symptom):
 class SimpleDiseasePredictionModel:
     def __init__(self):
         self.diseases = ['Healthy', 'Flu', 'Pneumonia', 'Hypertension', 'Diabetes']
-        
+
     def predict(self, features):
         """
         Predict disease based on simple rules
         features: [age, temperature, heart_rate, blood_pressure, oxygen_level, pain_level]
         """
         age, temperature, heart_rate, blood_pressure, oxygen_level, pain_level = features[0]
-        
+
         # Simple rule-based prediction
         if temperature > 38.5 and heart_rate > 90 and oxygen_level < 95:
             return ['Pneumonia']
@@ -172,15 +248,15 @@ class SimpleDiseasePredictionModel:
             return ['Diabetes']
         else:
             return ['Healthy']
-    
+
     def predict_proba(self, features):
         """Return confidence scores for the prediction"""
         prediction = self.predict(features)[0]
         confidences = [0.0] * len(self.diseases)
-        
+
         # Set confidence for the predicted disease
         disease_index = self.diseases.index(prediction)
-        
+
         # Simple confidence calculation
         if prediction == 'Pneumonia':
             confidences[disease_index] = 0.85
@@ -192,15 +268,15 @@ class SimpleDiseasePredictionModel:
             confidences[disease_index] = 0.70
         else:  # Healthy
             confidences[disease_index] = 0.65
-            
+
         return [confidences]
 
 # Symptom-based disease prediction model
 class SymptomBasedDiseaseModel:
     def __init__(self):
-        self.diseases = ['Healthy', 'Flu', 'Pneumonia', 'Hypertension', 'Diabetes', 
+        self.diseases = ['Healthy', 'Flu', 'Pneumonia', 'Hypertension', 'Diabetes',
                          'Common Cold', 'Bronchitis', 'Asthma', 'Migraine', 'Food Poisoning']
-        
+
         # Mapping of symptoms to diseases with weights
         self.symptom_disease_map = {
             'fever': {'Flu': 0.7, 'Pneumonia': 0.6, 'Common Cold': 0.5},
@@ -249,7 +325,7 @@ class SymptomBasedDiseaseModel:
             'irregular_heartbeat': {'Hypertension': 0.7},
             'burning_urination': {'Food Poisoning': 0.3}
         }
-    
+
     def predict(self, symptoms):
         """
         Predict disease based on symptoms
@@ -257,30 +333,30 @@ class SymptomBasedDiseaseModel:
         """
         if not symptoms:
             return ['Healthy']
-        
+
         # Calculate scores for each disease based on symptoms
         disease_scores = {disease: 0.0 for disease in self.diseases}
-        
+
         for symptom in symptoms:
             if symptom in self.symptom_disease_map:
                 for disease, weight in self.symptom_disease_map[symptom].items():
                     disease_scores[disease] += weight
-        
+
         # Find the disease with the highest score
         max_score = 0
         predicted_disease = 'Healthy'
-        
+
         for disease, score in disease_scores.items():
             if score > max_score:
                 max_score = score
                 predicted_disease = disease
-        
+
         # If no significant score, return Healthy
         if max_score < 0.5:
             return ['Healthy']
-        
+
         return [predicted_disease]
-    
+
     def predict_proba(self, symptoms):
         """Return confidence scores for the prediction"""
         if not symptoms:
@@ -288,15 +364,15 @@ class SymptomBasedDiseaseModel:
             healthy_index = self.diseases.index('Healthy')
             confidences[healthy_index] = 0.6
             return [confidences]
-        
+
         # Calculate scores for each disease based on symptoms
         disease_scores = {disease: 0.0 for disease in self.diseases}
-        
+
         for symptom in symptoms:
             if symptom in self.symptom_disease_map:
                 for disease, weight in self.symptom_disease_map[symptom].items():
                     disease_scores[disease] += weight
-        
+
         # Convert scores to probabilities
         total_score = sum(disease_scores.values())
         if total_score == 0:
@@ -304,13 +380,13 @@ class SymptomBasedDiseaseModel:
             healthy_index = self.diseases.index('Healthy')
             confidences[healthy_index] = 0.6
             return [confidences]
-        
+
         confidences = [0.0] * len(self.diseases)
         for i, disease in enumerate(self.diseases):
             if disease in disease_scores:
                 # Normalize and apply a sigmoid-like function to get probabilities
                 confidences[i] = min(0.95, disease_scores[disease] / (total_score + 1))
-        
+
         return [confidences]
 
 # Create model instances
@@ -322,12 +398,17 @@ def home():
     """Serve the web UI from ../frontend."""
     return send_from_directory(FRONTEND_DIR, 'index.html')
 
-@app.route('/<path:filename>')
+@app.route('/css/<path:filename>')
+@app.route('/js/<path:filename>')
 def frontend_asset(filename):
-    """Serve frontend files (css/, js/). API routes take precedence over this."""
-    if not os.path.isfile(os.path.join(FRONTEND_DIR, filename)):
-        abort(404)
-    return send_from_directory(FRONTEND_DIR, filename)
+    """Serve frontend assets from ../frontend/css and ../frontend/js."""
+    folder = request.path.strip('/').split('/', 1)[0]
+    return send_from_directory(os.path.join(FRONTEND_DIR, folder), filename)
+
+
+@app.route('/favicon.svg')
+def favicon():
+    return send_from_directory(FRONTEND_DIR, 'favicon.svg')
 
 @app.route('/api')
 def api_index():
@@ -342,40 +423,50 @@ def api_index():
             'POST /predict_by_symptoms_ml': 'ML prediction from {"symptoms": [...]}',
             'POST /predict': 'Rule-based vitals screen',
             'POST /chat': 'Free-text symptom assistant',
+            'GET /symptom_catalog': 'All symptoms with their information',
+            'POST /predict_by_symptoms': 'Rule-based symptom prediction (fallback)',
             'GET /metrics': 'Request counters and latencies',
         },
     })
 
+# Accepted ranges for the vitals screen: (label, min, max), in feature order.
+VITAL_FIELDS = {
+    'age': ('Age', 1, 120),
+    'temperature': ('Temperature (°C)', 30, 45),
+    'heart_rate': ('Heart rate (bpm)', 30, 220),
+    'blood_pressure': ('Systolic blood pressure (mmHg)', 60, 250),
+    'oxygen_level': ('Oxygen saturation (%)', 50, 100),
+    'pain_level': ('Pain level', 0, 10),
+}
+
+
 @app.route('/predict', methods=['POST'])
 def predict():
-    try:
-        # Get data from request
-        data = request.get_json()
-        
-        # Extract features in the correct order
-        features = np.array([[
-            float(data['age']),
-            float(data['temperature']),
-            float(data['heart_rate']),
-            float(data['blood_pressure']),
-            float(data['oxygen_level']),
-            float(data['pain_level'])
-        ]])
-        
-        # Make prediction
-        prediction = model.predict(features)[0]
-        prediction_proba = model.predict_proba(features)[0]
-        
-        # Get the highest probability
-        max_proba_index = model.diseases.index(prediction)
-        max_proba = prediction_proba[max_proba_index] * 100
-        
-        return jsonify({
-            'disease': prediction,
-            'confidence': round(float(max_proba), 2)
-        })
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return error_response('Request body must be a JSON object.', 400)
+
+    values = []
+    for key, (label, low, high) in VITAL_FIELDS.items():
+        try:
+            value = float(data[key])
+        except KeyError:
+            return error_response(f'{label} is required.', 400)
+        except (TypeError, ValueError):
+            return error_response(f'{label} must be a number.', 400)
+        if not low <= value <= high:
+            return error_response(f'{label} must be between {low} and {high}.', 400)
+        values.append(value)
+
+    features = np.array([values])
+    prediction = model.predict(features)[0]
+    prediction_proba = model.predict_proba(features)[0]
+    max_proba = prediction_proba[model.diseases.index(prediction)] * 100
+
+    return jsonify({
+        'disease': prediction,
+        'confidence': round(float(max_proba), 2)
+    })
 
 # Cached dataset and symptom stats
 SYMPTOM_DF = None
@@ -390,6 +481,12 @@ def _get_dataset_path():
         return base
     return None
 
+def _dataset_name():
+    """Dataset file name only; full server paths are not exposed to clients."""
+    path = _get_dataset_path()
+    return os.path.basename(path) if path else None
+
+
 def _load_symptom_df():
     global SYMPTOM_DF
     if SYMPTOM_DF is None:
@@ -398,6 +495,7 @@ def _load_symptom_df():
             try:
                 SYMPTOM_DF = pd.read_csv(path)
             except Exception:
+                logger.exception('Failed to load symptom dataset')
                 SYMPTOM_DF = None
     return SYMPTOM_DF
 
@@ -563,15 +661,15 @@ HOME_ADVICE_MAP = {
 def compute_symptom_stats(symptom: str):
     if not symptom:
         return None
-    
+
     # Normalize symptom name first
     normalized_symptom = normalize_symptom_name(symptom) or symptom
-    
+
     # Use normalized name for cache key
     cache_key = normalized_symptom
     if cache_key in SYMPTOM_STATS_CACHE:
         return SYMPTOM_STATS_CACHE[cache_key]
-    
+
     df = _load_symptom_df()
     if df is None:
         SYMPTOM_STATS_CACHE[cache_key] = {
@@ -583,15 +681,15 @@ def compute_symptom_stats(symptom: str):
             'advice': HOME_ADVICE_MAP.get(normalized_symptom, ['Monitor symptoms', 'Seek care if worsening'])
         }
         return SYMPTOM_STATS_CACHE[cache_key]
-    
+
     # Try original symptom name first, then normalized
     col = f'symptom_{symptom}'
     if col not in df.columns:
         col = f'symptom_{normalized_symptom}'
-    
+
     if col not in df.columns:
         SYMPTOM_STATS_CACHE[cache_key] = {
-            'dataset_source': _get_dataset_path(),
+            'dataset_source': _dataset_name(),
             'prevalence_pct': None,
             'top_diseases': [],
             'co_symptoms': [],
@@ -625,14 +723,14 @@ def compute_symptom_stats(symptom: str):
             co_symptoms.append({'name': human, 'count': int(val)})
 
     stats = {
-        'dataset_source': _get_dataset_path(),
+        'dataset_source': _dataset_name(),
         'prevalence_pct': round(prevalence_pct, 2),
         'top_diseases': top_diseases,
         'co_symptoms': co_symptoms,
         'red_flags': RED_FLAGS_MAP.get(symptom, []),
         'advice': HOME_ADVICE_MAP.get(symptom, ['Monitor symptoms', 'Seek care if worsening'])
     }
-    SYMPTOM_STATS_CACHE[symptom] = stats
+    SYMPTOM_STATS_CACHE[cache_key] = stats
     return stats
 
 @app.route('/symptom_info', methods=['GET'])
@@ -641,14 +739,14 @@ def get_symptom_info():
         symptom = request.args.get('symptom', '').strip()
         if not symptom:
             return jsonify({'error': 'No symptom provided', 'symptom': symptom}), 400
-        
+
         # Normalize symptom name to handle variations
         normalized_symptom = normalize_symptom_name(symptom)
         search_key = normalized_symptom or symptom.lower().strip()
-        
+
         # Compute stats using the normalized name
         stats = compute_symptom_stats(search_key) or {}
-        
+
         # Try to get cause - check both normalized and original
         cause = symptom_causes.get(search_key, None)
         if not cause:
@@ -659,11 +757,11 @@ def get_symptom_info():
                     cause = symptom_causes[var]
                     search_key = var
                     break
-        
+
         # If still not found, provide a helpful default message
         if not cause:
-            cause = f"This symptom may be related to various conditions. Please provide more details about the onset, duration, and severity. Consult a healthcare professional for accurate diagnosis."
-        
+            cause = "This symptom may be related to various conditions. Please provide more details about the onset, duration, and severity. Consult a healthcare professional for accurate diagnosis."
+
         return jsonify({
             'symptom': symptom,
             'normalized_symptom': normalized_symptom or search_key,
@@ -675,10 +773,10 @@ def get_symptom_info():
             'advice': stats.get('advice', []),
             'dataset_source': stats.get('dataset_source')
         })
-    except Exception as e:
-        logger.error(f"Error in get_symptom_info: {str(e)}", exc_info=True)
+    except Exception:
+        logger.exception('Error in /symptom_info')
         return jsonify({
-            'error': str(e),
+            'error': 'Could not retrieve symptom information.',
             'symptom': request.args.get('symptom', ''),
             'cause': 'Error retrieving symptom information. Please try again.',
             'prevalence_pct': None,
@@ -688,35 +786,47 @@ def get_symptom_info():
             'advice': ['Consult a healthcare professional for accurate information.']
         }), 500
 
+def _read_symptoms_payload():
+    """Return (symptoms, error_response) from a {"symptoms": [...]} JSON body."""
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return None, error_response('Request body must be a JSON object.', 400)
+    symptoms = data.get('symptoms', [])
+    if not isinstance(symptoms, list) or not all(isinstance(s, str) for s in symptoms):
+        return None, error_response('"symptoms" must be a list of strings.', 400)
+    if len(symptoms) > MAX_SYMPTOMS:
+        return None, error_response(f'Send at most {MAX_SYMPTOMS} symptoms.', 400)
+    return [s.strip().lower() for s in symptoms if s.strip()], None
+
+
 @app.route('/predict_by_symptoms', methods=['POST'])
 def predict_by_symptoms():
+    symptoms, err = _read_symptoms_payload()
+    if err:
+        return err
     try:
-        # Get data from request
-        data = request.json
-        symptoms = data.get('symptoms', [])
-        
         # Make prediction
         prediction = symptom_model.predict(symptoms)[0]
         prediction_proba = symptom_model.predict_proba(symptoms)[0]
-        
+
         # Get the highest probability
         max_proba_index = symptom_model.diseases.index(prediction)
         max_proba = prediction_proba[max_proba_index]
-        
+
         # Create probabilities dictionary for all diseases
         probabilities = {}
         for i, disease in enumerate(symptom_model.diseases):
             probabilities[disease] = round(prediction_proba[i] * 100, 2)
-        
+
         return jsonify({
             'disease': prediction,
             'confidence': round(max_proba * 100, 2),
             'probabilities': probabilities
         })
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        logger.exception('Error in /predict_by_symptoms')
+        return error_response('Prediction failed. Please try again.', 500)
 
-# __main__ block moved to end of file to ensure routes load
 # ML symptom model artifacts (lazy-loaded)
 ML_MODEL = None
 ML_SYMPTOM_INDEX = []
@@ -728,23 +838,36 @@ def load_ml_artifacts():
     if ML_MODEL is not None:
         return
     try:
-        import pickle, os
-        with open(os.path.join(BASE_DIR, 'model','symptom_ml_artifacts.pkl'),'rb') as f:
+        with open(os.path.join(BASE_DIR, 'model', 'symptom_ml_artifacts.pkl'), 'rb') as f:
             artifacts = pickle.load(f)
         ML_MODEL = artifacts.get('model')
         ML_SYMPTOM_INDEX = artifacts.get('symptom_index', [])
         ML_DISEASES = artifacts.get('diseases', [])
-        print('Loaded ML symptom model artifacts:', len(ML_SYMPTOM_INDEX), 'symptoms', len(ML_DISEASES), 'diseases')
-    except Exception as e:
-        print('Failed to load ML symptom model artifacts:', e)
+        logger.info('Loaded ML model: %d symptom features, %d diseases',
+                    len(ML_SYMPTOM_INDEX), len(ML_DISEASES))
+    except Exception:
+        logger.exception('Failed to load ML model artifacts')
+
+
+def _load_symptom_names():
+    """Symptom vocabulary shown to users (model/symptoms_list.json)."""
+    path = os.path.join(BASE_DIR, 'model', 'symptoms_list.json')
+    if os.path.exists(path):
+        with open(path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    load_ml_artifacts()
+    if ML_SYMPTOM_INDEX:
+        return [s.replace('symptom_', '') for s in ML_SYMPTOM_INDEX]
+    return sorted(symptom_causes.keys())
 
 
 @app.route('/predict_by_symptoms_ml', methods=['POST'])
 def predict_by_symptoms_ml():
+    symptoms, err = _read_symptoms_payload()
+    if err:
+        return err
     try:
         load_ml_artifacts()
-        data = request.json
-        symptoms = data.get('symptoms', [])
 
         # Fallback to rule-based model if ML model not available
         if ML_MODEL is None or not ML_SYMPTOM_INDEX:
@@ -752,11 +875,14 @@ def predict_by_symptoms_ml():
 
         # Build binary feature vector for selected symptoms
         x = np.zeros((1, len(ML_SYMPTOM_INDEX)))
+        used, unused = [], []
         for s in symptoms:
             key = f"symptom_{s}"
             if key in ML_SYMPTOM_INDEX:
-                idx = ML_SYMPTOM_INDEX.index(key)
-                x[0, idx] = 1
+                x[0, ML_SYMPTOM_INDEX.index(key)] = 1
+                used.append(s)
+            else:
+                unused.append(s)
 
         proba = ML_MODEL.predict_proba(x)[0]
         max_idx = int(np.argmax(proba))
@@ -768,52 +894,32 @@ def predict_by_symptoms_ml():
         return jsonify({
             'disease': predicted,
             'confidence': round(float(proba[max_idx] * 100), 2),
-            'probabilities': probabilities
+            'probabilities': probabilities,
+            'symptoms_used': used,
+            'symptoms_not_in_model': unused
         })
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        logger.exception('Error in /predict_by_symptoms_ml')
+        return error_response('Prediction failed. Please try again.', 500)
 
 @app.route('/symptoms', methods=['GET'])
 def get_symptoms():
     try:
-        import json, os
-        path = os.path.join(BASE_DIR, 'model','symptoms_list.json')
-        names = []
-        if os.path.exists(path):
-            with open(path, 'r') as f:
-                names = json.load(f)
-        else:
-            load_ml_artifacts()
-            if ML_SYMPTOM_INDEX:
-                names = [s.replace('symptom_', '') for s in ML_SYMPTOM_INDEX]
-        return jsonify({'symptoms': names})
-    except Exception as e:
-        return jsonify({'error': str(e), 'symptoms': []}), 500
-
-# Initialize logging from logging.conf if available
-os.makedirs(os.path.join(BASE_DIR, 'logs'), exist_ok=True)
-logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(name)s %(message)s')
-logger = logging.getLogger('app')
-
-# Enable CORS for API endpoints
-# Enable CORS so the separately served frontend can call every endpoint.
-# Restrict in production with e.g. CORS_ORIGINS="https://your-frontend.example".
-_cors_origins = os.getenv('CORS_ORIGINS', '*')
-CORS(app, resources={r"/*": {"origins": [o.strip() for o in _cors_origins.split(',')] if _cors_origins != '*' else '*'}})
+        return jsonify({'symptoms': _load_symptom_names()})
+    except Exception:
+        logger.exception('Error in /symptoms')
+        return jsonify({'error': 'Could not load the symptom list.', 'symptoms': []}), 500
 
 @app.route('/health', methods=['GET'])
 def health():
     """Lightweight health check endpoint."""
     # Try loading dataset and ml artifacts lazily
     df = _load_symptom_df()
-    try:
-        load_ml_artifacts()
-    except Exception as e:
-        logger.warning("ML artifacts load issue", extra={'error': str(e)})
+    load_ml_artifacts()
     status = {
         'status': 'healthy',
         'uptime_seconds': round(time.time() - START_TIME, 2),
-        'routes_count': len(app.url_map._rules),
+        'routes_count': len(list(app.url_map.iter_rules())),
         'dataset_loaded': bool(df is not None),
         'ml_model_loaded': bool(ML_MODEL is not None),
         'symptom_index_count': len(ML_SYMPTOM_INDEX) if ML_SYMPTOM_INDEX else 0,
@@ -845,30 +951,19 @@ def metrics():
 @app.route('/chat', methods=['POST'])
 def chat():
     try:
-        payload = request.get_json(silent=True) or {}
-        message = str(payload.get('message', '')).lower().strip()
+        payload = request.get_json(silent=True)
+        if not isinstance(payload, dict):
+            return error_response('Request body must be a JSON object.', 400)
+        message = str(payload.get('message', '')).lower().strip()[:MAX_MESSAGE_CHARS]
         if not message:
             return jsonify({
                 'reply': 'Please describe your symptoms, duration, and severity.',
                 'follow_up': ['List symptoms (e.g., fever, cough)', 'Duration in days', 'Severity (mild/moderate/severe)', 'Any red flags like chest pain or vision loss?']
             })
 
-        # Load known symptom names
-        names = []
-        try:
-            import json, os
-            path = os.path.join(BASE_DIR, 'model','symptoms_list.json')
-            if os.path.exists(path):
-                with open(path, 'r') as f:
-                    names = json.load(f)
-            else:
-                load_ml_artifacts()
-                if ML_SYMPTOM_INDEX:
-                    names = [s.replace('symptom_', '') for s in ML_SYMPTOM_INDEX]
-        except Exception:
-            names = list({k for k in symptom_causes.keys()})
+        names = _load_symptom_names()
 
-        # Improved symptom extraction with normalization
+        # Extract known symptoms from the message (with normalization)
         matched = []
         for name in names:
             key = name.lower()
@@ -882,7 +977,7 @@ def chat():
                 if key_with_spaces in message:
                     normalized = normalize_symptom_name(key)
                     matched.append(normalized if normalized else key)
-        
+
         # Remove duplicates and limit
         matched = list(dict.fromkeys(matched))[:10]
 
@@ -900,7 +995,7 @@ def chat():
             cause = symptom_causes.get(normalized_s, None)
             if not cause:
                 # Try to provide a generic response based on symptom name
-                cause = f"This symptom may be related to various conditions. Please provide more details about the onset, duration, and severity."
+                cause = "This symptom may be related to various conditions. Please provide more details about the onset, duration, and severity."
             insights.append({
                 'symptom': s,
                 'normalized_symptom': normalized_s,
@@ -937,26 +1032,15 @@ def chat():
             'insights': insights,
             'next_steps': follow_up
         })
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        logger.exception('Error in /chat')
+        return error_response('Could not process your message. Please try again.', 500)
 
 
 @app.route('/symptom_catalog', methods=['GET'])
 def symptom_catalog():
     try:
-        # Build full catalog with stats
-        import json, os
-        names = []
-        path = os.path.join(BASE_DIR, 'model','symptoms_list.json')
-        if os.path.exists(path):
-            with open(path, 'r') as f:
-                names = json.load(f)
-        else:
-            load_ml_artifacts()
-            if ML_SYMPTOM_INDEX:
-                names = [s.replace('symptom_', '') for s in ML_SYMPTOM_INDEX]
-            else:
-                names = sorted(list({k for k in symptom_causes.keys()}))
+        names = _load_symptom_names()
         catalog = []
         for s in names:
             s_key = s.lower()
@@ -972,13 +1056,15 @@ def symptom_catalog():
                 'dataset_source': stats.get('dataset_source')
             })
         return jsonify({'count': len(catalog), 'catalog': catalog})
-    except Exception as e:
-        return jsonify({'error': str(e), 'catalog': []}), 500
+    except Exception:
+        logger.exception('Error in /symptom_catalog')
+        return jsonify({'error': 'Could not build the symptom catalog.', 'catalog': []}), 500
 
 if __name__ == '__main__':
-    # Run with env-based configuration
+    # Development server. Debug mode (auto-reload + interactive debugger) is
+    # off unless DEBUG=true; never enable it on a network-reachable host.
+    host = os.getenv('HOST', '0.0.0.0')
     port = int(os.getenv('PORT', '5000'))
-    env = os.getenv('FLASK_ENV', 'development')
-    debug = env != 'production'
-    logger.info('Starting app', extra={'port': port, 'env': env})
-    app.run(host='0.0.0.0', port=port, debug=debug)
+    debug = os.getenv('DEBUG', 'false').strip().lower() in ('1', 'true', 'yes')
+    logger.info('Starting MedPredict on http://%s:%d (debug=%s)', host, port, debug)
+    app.run(host=host, port=port, debug=debug)

@@ -1,19 +1,19 @@
 # 🏥 Disease Prediction System
 
-[![Python](https://img.shields.io/badge/Python-3.8%2B-blue.svg)](https://python.org)
-[![Flask](https://img.shields.io/badge/Flask-2.3%2B-green.svg)](https://flask.palletsprojects.com/)
+[![Python](https://img.shields.io/badge/Python-3.11%2B-blue.svg)](https://python.org)
+[![Flask](https://img.shields.io/badge/Flask-3.1-green.svg)](https://flask.palletsprojects.com/)
 [![Machine Learning](https://img.shields.io/badge/ML-Scikit--Learn-orange.svg)](https://scikit-learn.org/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-A machine learning-powered web application that predicts diseases based on symptom analysis and basic health parameters. It combines a lightweight rule-based check on vital signs with a trained scikit-learn model for symptom-based prediction, plus an interactive chat-style assistant for symptom triage.
+MedPredict is a web application that predicts likely diseases from symptoms and basic vital signs. It combines a trained scikit-learn model for symptom-based prediction with a rule-based vital-signs screen and a chat-style assistant that explains causes, warning signs and self-care advice for each symptom.
 
 ## 🌟 Features
 
 ### Core Functionality
 - **Dual Prediction Modes**: Vitals-based heuristic check and ML-based symptom prediction
 - **Real-time Predictions**: Instant disease prediction with confidence scores
-- **Comprehensive Symptom Coverage**: 75 symptoms mapped to causes, and a 73-symptom ML feature set covering 21 disease categories
-- **Modern Chat UI**: Single-page assistant with symptom chips, dark mode, and structured response cards (causes, prevalence, red flags, advice) instead of plain text
+- **Symptom Coverage**: 73 selectable symptoms with guidance; the ML model uses 49 of them as features across 21 disease categories (the result card says which selected symptoms the model did not use)
+- **Responsive Interface**: Symptom Checker, Assistant, Vitals Check and About pages with light/dark themes, mobile navigation and accessible controls
 - **Balanced Training Data**: 42,000-row augmented dataset for the ML model
 
 ### Advanced Features
@@ -24,7 +24,7 @@ A machine learning-powered web application that predicts diseases based on sympt
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Python 3.8 or higher
+- Python 3.11 or higher
 - pip package manager
 - Virtual environment (recommended)
 
@@ -52,11 +52,9 @@ A machine learning-powered web application that predicts diseases based on sympt
    pip install -r backend/requirements.txt
    ```
 
-4. **Configure environment**
-   ```bash
-   cp .env.example .env
-   # edit .env with your own values — never commit this file
-   ```
+4. **(Optional) Configure**
+
+   Defaults work out of the box. The settings the backend reads (`HOST`, `PORT`, `DEBUG`, `LOG_LEVEL`, `CORS_ORIGINS`) are documented in [.env.example](.env.example); set them as environment variables before starting the backend.
 
 5. **(Optional) Retrain the model**
 
@@ -86,14 +84,14 @@ A machine learning-powered web application that predicts diseases based on sympt
 ## 📊 Dataset Information
 
 ### Symptom Coverage
-The `/symptoms` endpoint exposes 75 symptoms spanning respiratory, digestive, neurological, mental health, skin, and urinary categories (see `symptom_causes` in [backend/app.py](backend/app.py)). The ML training pipeline uses its own 73-symptom binary feature set (see `SYMPTOMS` in [backend/train_symptom_model.py](backend/train_symptom_model.py)).
+The `/symptoms` endpoint exposes 73 symptoms (from `backend/model/symptoms_list.json`) spanning respiratory, digestive, neurological, mental health, skin, and urinary categories; causes and advice live in [backend/app.py](backend/app.py). The bundled model was trained on the 49 symptom columns of the bundled dataset, so prediction responses list any selected symptoms the model does not use in `symptoms_not_in_model`.
 
 ### Disease Categories (21 conditions)
 Common Cold, Influenza, COVID-19, Pneumonia, Bronchitis, Asthma, Allergy, Sinusitis, Migraine, Gastroenteritis, Food Poisoning, Irritable Bowel Syndrome, Hypertension, Diabetes, Urinary Tract Infection, Dermatitis, Anemia, Anxiety Disorder, Depressive Disorder, Arthritis, Healthy.
 
 ### Dataset Statistics
 - **Total Samples**: 42,000 rows (`backend/data/symptom_dataset_pro.csv`, 2,000 per disease class)
-- **Features**: 73 binary symptom indicators
+- **Features**: 49 binary symptom indicators
 - **Validation Accuracy**: ~79% (Logistic Regression, 80/20 stratified split)
 - **Strongest classes**: Influenza (F1 0.96), COVID-19 (F1 0.89), Common Cold (F1 0.88)
 - **Weakest classes**: Healthy (F1 0.35, symptom overlap), Food Poisoning (F1 0.67)
@@ -142,7 +140,9 @@ Content-Type: application/json
         "Influenza": 82.72,
         "COVID-19": 3.44,
         "Common Cold": 2.52
-    }
+    },
+    "symptoms_used": ["fever", "cough", "headache", "fatigue"],
+    "symptoms_not_in_model": []
 }
 ```
 
@@ -169,28 +169,30 @@ GET /symptom_info?symptom=fever
 ### Other Endpoints
 | Endpoint | Method | Description |
 |---|---|---|
-| `/` | GET | Main web interface |
-| `/chat_ui` | GET | Redirects to `/` |
+| `/` | GET | Web interface (served from `frontend/`) |
+| `/api` | GET | List of API endpoints |
 | `/chat` | POST | Chat-style symptom triage |
 | `/symptoms` | GET | List of known symptoms |
 | `/symptom_catalog` | GET | Full symptom catalog |
 | `/predict_by_symptoms` | POST | Non-ML heuristic symptom prediction |
 | `/health` | GET | Health check |
-| `/metrics` | GET | Basic request/latency counters |
+| `/metrics` | GET | Request counts and latency per endpoint |
+
+Invalid input returns HTTP `400` with `{"error": "<message>"}` (for example a missing vital sign or an out-of-range value); unexpected failures return `500` with a generic message and are logged on the server.
 
 ## 🧠 Machine Learning Pipeline
 
 ### Model Architecture
 - **Algorithm**: Logistic Regression (`scikit-learn`)
-- **Features**: 73 binary symptom indicators
+- **Features**: 49 binary symptom indicators (bundled model)
 - **Classes**: 21 disease categories
 - **Validation**: Stratified 80/20 train/test split
 
 ### Training Process
-1. **Data Loading**: Prefers `data/symptom_dataset_pro.csv`, falls back to `data/symptom_dataset.csv`, or synthesizes 10K rows if neither exists
+1. **Data Loading**: Prefers `backend/data/symptom_dataset_pro.csv`, falls back to `backend/data/symptom_dataset.csv`, or synthesizes 10K rows if neither exists
 2. **Training**: Logistic Regression fit on binary symptom features
 3. **Evaluation**: Accuracy and per-class classification report printed to console
-4. **Serialization**: Model, symptom index, and disease labels saved to `model/symptom_ml_artifacts.pkl`
+4. **Serialization**: Model, symptom index, and disease labels saved to `backend/model/symptom_ml_artifacts.pkl`
 
 Run `python backend/train_symptom_model.py` to retrain — it overwrites `model/symptom_ml_artifacts.pkl`, `model/symptoms_list.json`, and `model/diseases_list.json` using the script's own symptom vocabulary, which differs from the one used elsewhere in the app.
 
@@ -202,25 +204,29 @@ mlproject/
 │   ├── app.py                   # API routes, prediction logic, serves frontend/
 │   ├── train_symptom_model.py   # ML model training script
 │   ├── requirements.txt         # Python dependencies
-│   ├── logging.conf             # Logging configuration
 │   ├── 📁 data/                 # Symptom–disease datasets (CSV)
 │   ├── 📁 model/                # Trained model + symptom/disease lists
 │   └── 📁 logs/                 # Log files (created at runtime)
 ├── 📁 frontend/                 # Static web UI (no build step)
 │   ├── index.html               # Page markup: checker, assistant, vitals, about
+│   ├── favicon.svg
 │   ├── 📁 css/styles.css        # Design tokens, layout, light/dark themes
 │   └── 📁 js/
+│       ├── theme.js             # Applies saved/system theme before first paint
 │       ├── config.js            # Backend API URL
 │       └── app.js               # Routing, API calls, rendering
 ├── 📄 run.bat                   # Sets up .venv and starts the app on Windows
+├── 📄 .env.example              # Documented configuration settings
 └── 📄 README.md
 ```
 
 ## 🔒 Security & Privacy
 
 - No personal health information is persisted — predictions are stateless
-- `.env` holds local configuration only and is excluded from version control
-- Input validation on prediction endpoints; errors return JSON with a message, not stack traces
+- Debug mode (interactive debugger) is off by default; enable it only on a private machine with `DEBUG=true`
+- Input validation on all POST endpoints, a 64 KB request size limit, and JSON errors without stack traces or server paths
+- Security headers on every response (`Content-Security-Policy` on pages, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`)
+- Restrict cross-origin access with `CORS_ORIGINS` when the frontend is hosted separately
 
 ### Medical Disclaimer
 ⚠️ **IMPORTANT**: This application is for educational and demonstration purposes only. It should **not** be used for actual medical diagnosis or treatment decisions. Always consult qualified healthcare professionals for medical advice.
@@ -228,18 +234,28 @@ mlproject/
 ## 📦 Deployment
 
 ### Environment Variables
-Copy `.env.example` to `.env`. Variables the app actually reads: `CORS_ORIGINS` (comma-separated allowed frontend origins, default `*`), `HOST`, `PORT`, `DEBUG`, `LOG_LEVEL`, `LOG_FILE_PATH`, `ERROR_LOG_FILE_PATH`. The example file also documents additional variables (database, Redis, cloud storage, etc.) for optional future integrations — none are required to run the app today.
+| Variable | Default | Purpose |
+|---|---|---|
+| `HOST` | `0.0.0.0` | Listen address (`127.0.0.1` keeps it local to the machine) |
+| `PORT` | `5000` | Listen port |
+| `DEBUG` | `false` | Auto-reload and interactive debugger — development only |
+| `LOG_LEVEL` | `INFO` | Logging verbosity |
+| `CORS_ORIGINS` | `*` | Comma-separated origins allowed to call the API |
 
-### Production Setup (Gunicorn + Nginx)
+Windows example: `set PORT=8080` then `.venv\Scripts\python.exe backend\app.py`.
+
+### Production Setup
+`python backend/app.py` uses Flask's built-in server, which is fine for demos. For a public deployment run the app under a WSGI server (installed separately), e.g. on Linux:
 ```bash
+pip install gunicorn
 gunicorn -w 4 -b 0.0.0.0:5000 --chdir backend app:app
 ```
-Serve `frontend/` as static files from Nginx (or any static host) and proxy the API, setting `API_BASE_URL` in `frontend/js/config.js` and `CORS_ORIGINS` on the backend to match. Use Nginx for HTTPS, and run under a process manager (systemd, supervisord) for auto-restart.
+The backend serves the frontend itself; alternatively serve `frontend/` as static files from Nginx (or any static host) and proxy the API, setting `API_BASE_URL` in `frontend/js/config.js` and `CORS_ORIGINS` on the backend to match. Use Nginx for HTTPS, and run under a process manager (systemd, supervisord) for auto-restart.
 
 ### Observability
-- Logs: `backend/logs/` directory (`app.log`, `error.log`, `ml.log`, `api.log`, `security.log`, `flask.log`)
+- Logs: console and `backend/logs/app.log` (rotated at 5 MB, 3 backups)
 - Health: `GET /health` returns status and uptime
-- Metrics: `GET /metrics` exposes basic request counters
+- Metrics: `GET /metrics` exposes request counts and min/avg/max latency per endpoint (in memory, resets on restart)
 
 ## 📝 License
 

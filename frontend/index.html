@@ -4,20 +4,20 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>MedPredict — Disease Prediction System</title>
-<meta name="description" content="Machine-learning disease prediction from symptoms and vital signs." />
+<meta name="description" content="Check your symptoms and vital signs with a machine-learning model that ranks likely conditions and explains causes, warning signs and self-care advice." />
 <meta name="theme-color" content="#0E7490" />
+<meta name="color-scheme" content="light dark" />
+<meta name="robots" content="index, follow" />
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="MedPredict" />
+<meta property="og:title" content="MedPredict — Disease Prediction System" />
+<meta property="og:description" content="Machine-learning symptom checker with ranked predictions, symptom guidance and a vital-signs screen." />
+<meta name="twitter:card" content="summary" />
+<link rel="icon" href="favicon.svg" type="image/svg+xml" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@500;600;700;800&family=Noto+Sans:wght@400;500;600&display=swap" rel="stylesheet">
-<script>
-  // Set theme before paint to avoid a flash
-  (function () {
-    var t = null;
-    try { t = localStorage.getItem('mp-theme'); } catch (e) {}
-    if (!t) t = window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-    document.documentElement.setAttribute('data-theme', t);
-  })();
-</script>
+<script src="js/theme.js"></script>
 <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
